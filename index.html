@@ -72,7 +72,7 @@
             </span>
             <div class="flex flex-col">
                 <h1 class="text-lg font-bold tracking-widest text-emerald-400 uppercase flex items-center gap-2">
-                    EXTREME WEATHER CONSOLE <span class="text-xs bg-slate-800 text-slate-400 px-2 py-0.5 rounded font-normal">v3.0.0</span>
+                    EXTREME WEATHER CONSOLE <span class="text-xs bg-slate-800 text-slate-400 px-2 py-0.5 rounded font-normal">v3.2.0</span>
                 </h1>
                 <span class="text-2xs text-slate-500 font-mono tracking-tight">3D ORBITAL TACTICAL MATRIX MONITORING</span>
             </div>
@@ -121,8 +121,8 @@
             <!-- Sidebar Footer Status Panel -->
             <div class="p-6 bg-slate-950 border-t border-slate-900 text-xs font-mono text-slate-500 space-y-2">
                 <div class="flex justify-between">
-                    <span>SECTOR STATUS:</span>
-                    <span class="text-emerald-400 font-bold">NOMINAL</span>
+                    <span>TELEMETRY FEED:</span>
+                    <span id="api-status" class="text-emerald-400 font-bold">ONLINE</span>
                 </div>
                 <div class="flex justify-between">
                     <span>UPTIME:</span>
@@ -145,6 +145,7 @@
                     <span class="text-slate-500">REFRESH RATE: 60 FPS</span>
                 </div>
                 <div class="flex items-center gap-2">
+                    <button onclick="triggerFeedReload()" class="mr-2 text-2xs bg-slate-900 hover:bg-slate-800 transition px-2 py-0.5 rounded text-slate-400 border border-slate-800">RE-FETCH DATA</button>
                     <span class="text-2xs bg-slate-900 px-2 py-0.5 rounded text-slate-500 border border-slate-800 font-mono" id="coordinates">X: 0.000 Y: 0.000</span>
                 </div>
             </div>
@@ -153,8 +154,16 @@
             <div class="flex-1 relative overflow-hidden" id="canvas-container">
                 <canvas id="weather-canvas" class="absolute top-0 left-0 w-full h-full block cursor-grab active:cursor-grabbing"></canvas>
                 
+                <!-- DOWNLINK / LOADING OVERLAY -->
+                <div id="loading-overlay" class="hidden absolute inset-0 bg-slate-950/80 backdrop-blur-sm flex flex-col items-center justify-center z-20 pointer-events-none">
+                    <div class="flex flex-col items-center gap-3">
+                        <div id="loading-spinner" class="w-10 h-10 border-4 border-slate-800 rounded-full animate-spin"></div>
+                        <span id="loading-label" class="text-xs font-bold tracking-widest uppercase font-mono animate-pulse">DOWNLINK IN PROGRESS</span>
+                    </div>
+                </div>
+
                 <!-- Context overlay instructions -->
-                <div class="absolute bottom-4 left-4 bg-slate-900/80 backdrop-blur border border-slate-800 rounded px-3 py-2 text-2xs text-slate-400 pointer-events-none flex flex-col gap-1 max-w-xs">
+                <div class="absolute bottom-4 left-4 bg-slate-900/80 backdrop-blur border border-slate-800 rounded px-3 py-2 text-2xs text-slate-400 pointer-events-none flex flex-col gap-1 max-w-xs z-10">
                     <div class="flex items-center gap-2">
                         <kbd class="bg-slate-950 px-1 border border-slate-700 rounded text-slate-300">Drag / Swipe</kbd>
                         <span>Rotate 3D Wireframe Globe</span>
@@ -176,15 +185,15 @@
             activeTab: 'seismic', // seismic, vortex, hazards
             startTime: Date.now(),
             seismic: {
-                magnitude: 6.5,
+                magnitude: 4.5,
                 depth: 80,
                 tectonic: true,
                 volcanic: false,
                 shallow: true
             },
             vortex: {
-                category: 4,
-                windSpeed: 145,
+                category: 3,
+                windSpeed: 120,
                 historical: true,
                 cone: true,
                 satellite: false
@@ -208,24 +217,10 @@
         let isDragging = false;
         let startMouseX = 0;
         let startMouseY = 0;
-        const R_factor = 0.38;   // Globe radius factor of screen dimensions
+        const R_factor = 0.38;   // Globe radius factor
 
         // Master Threat Coordinate Data (lat/lon in radians, intensity 0..1)
-        const threats = [
-            // Seismic events (Japan, West US, Mediterranean)
-            { type: 'seismic', lat: 0.62, lon: 2.42, intensity: 0.85, name: 'TOK-9.0', age: 0, maxAge: 180 },
-            { type: 'seismic', lat: 0.64, lon: -2.12, intensity: 0.70, name: 'SFO-6.8', age: 40, maxAge: 180 },
-            { type: 'seismic', lat: 0.66, lon: 0.22, intensity: 0.55, name: 'MED-5.2', age: 90, maxAge: 180 },
-            
-            // Vortex tracker storms (Atlantic, West Pacific)
-            { type: 'vortex', lat: 0.35, lon: -1.15, intensity: 0.90, name: 'ST-KATE', age: 0, maxAge: 240 },
-            { type: 'vortex', lat: 0.22, lon: 2.15, intensity: 0.75, name: 'TYPH-GEN', age: 80, maxAge: 240 },
-            
-            // Severe hazards (US Midwest, Australia)
-            { type: 'hazard', lat: 0.68, lon: -1.72, intensity: 0.95, alert: 'Red Warning', category: 'Tornado', age: 0, maxAge: 200 },
-            { type: 'hazard', lat: -0.45, lon: 2.35, intensity: 0.80, alert: 'Red Warning', category: 'Wildfire', age: 50, maxAge: 200 },
-            { type: 'hazard', lat: 0.82, lon: -0.15, intensity: 0.50, alert: 'Yellow Advisory', category: 'Flood', age: 100, maxAge: 200 }
-        ];
+        let threats = [];
 
         // Canvas & Context Setup
         let canvas, ctx, animationFrameId;
@@ -257,7 +252,7 @@
             // Click to spawn threat
             canvas.addEventListener('click', handleCanvasClick);
             
-            // Render first tab controls
+            // Render first tab controls and load data
             switchTab('seismic');
             
             // Start main visualization loop
@@ -279,6 +274,27 @@
             ctx.scale(dpr, dpr);
             canvas.style.width = `${rect.width}px`;
             canvas.style.height = `${rect.height}px`;
+        }
+
+        // Toggle Loading State Animation Overlay
+        function showLoading(show) {
+            const overlay = document.getElementById('loading-overlay');
+            const spinner = document.getElementById('loading-spinner');
+            const label = document.getElementById('loading-label');
+            
+            if (show) {
+                overlay.classList.remove('hidden');
+                let colorClass = 'border-t-emerald-400 text-emerald-400';
+                if (state.activeTab === 'vortex') {
+                    colorClass = 'border-t-cyan-400 text-cyan-400';
+                } else if (state.activeTab === 'hazards') {
+                    colorClass = 'border-t-rose-400 text-rose-400';
+                }
+                spinner.className = `w-10 h-10 border-4 border-slate-800 rounded-full animate-spin ${colorClass.split(' ')[0]}`;
+                label.className = `text-xs font-bold tracking-widest uppercase font-mono animate-pulse ${colorClass.split(' ')[1]}`;
+            } else {
+                overlay.classList.add('hidden');
+            }
         }
 
         // Tab Switching Logic
@@ -303,7 +319,7 @@
                     tabClass: 'bg-rose-950/60 text-rose-400 border border-rose-500/30 neon-glow-rose',
                     text: 'text-rose-400',
                     viewTitle: '3D SEVERE HAZARDS GLOBE',
-                    instruction: 'Click on the globe to map localized active hazard alerts.'
+                    instruction: 'Click on the globe to map localized NOAA active hazard alerts.'
                 }
             };
             
@@ -325,12 +341,266 @@
             
             document.getElementById('tab-instruction').innerText = config.instruction;
 
-            // Redraw sidebar controllers
-            renderSidebarFilters(tabName);
+            // Trigger telemetry fetching pipeline
+            triggerFeedReload();
         }
 
-        // Sidebar rendering
-        function renderSidebarFilters(tabName) {
+        // Action dispatcher to fetch the active feed
+        function triggerFeedReload() {
+            showLoading(true);
+            
+            // Clear current canvas active rendering threats to switch feeds smoothly
+            threats = threats.filter(t => t.type !== state.activeTab);
+
+            if (state.activeTab === 'seismic') {
+                fetchEarthquakes();
+            } else if (state.activeTab === 'vortex') {
+                fetchVortexData();
+            } else if (state.activeTab === 'hazards') {
+                fetchSevereAlerts();
+            }
+        }
+
+        // --- EARTHQUAKE SERVERLESS API INGESTION ---
+        function fetchEarthquakes() {
+            const url = 'https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_day.geojson';
+            
+            fetch(url)
+                .then(response => {
+                    if (!response.ok) throw new Error("USGS server responded with code: " + response.status);
+                    return response.json();
+                })
+                .then(data => {
+                    console.log(`Fetched USGS seismic payload: ${data.features.length} events found.`);
+                    
+                    // Filter features and push into threats array
+                    data.features.slice(0, 150).forEach(feature => {
+                        const coords = feature.geometry.coordinates;
+                        const lat = coords[1];
+                        const lon = coords[0];
+                        const mag = feature.properties.mag || 1.0;
+                        const place = feature.properties.place || 'Seismic Event';
+
+                        // Convert coordinates into radian mapping values
+                        const latRad = lat * Math.PI / 180;
+                        const lonRad = lon * Math.PI / 180;
+
+                        // Severity scoring
+                        let colorHex = '#10b981'; // Green M1-M3
+                        if (mag >= 4.0 && mag < 6.0) colorHex = '#f59e0b'; // Amber M4-M5.9
+                        if (mag >= 6.0) colorHex = '#ef4444'; // Red M6+
+
+                        threats.push({
+                            type: 'seismic',
+                            lat: latRad,
+                            lon: lonRad,
+                            intensity: Math.max(0.1, Math.min(1.0, mag / 9.0)),
+                            name: `M${mag.toFixed(1)} - ${place.split(',')[0]}`,
+                            mag: mag,
+                            color: colorHex,
+                            age: Math.floor(Math.random() * 100), // staggered ripple offsets
+                            maxAge: 180
+                        });
+                    });
+                    
+                    document.getElementById('api-status').innerText = 'ONLINE';
+                    document.getElementById('api-status').className = 'text-emerald-400 font-bold';
+                    
+                    renderSidebarFilters('seismic');
+                    showLoading(false);
+                })
+                .catch(error => {
+                    console.error("USGS Telemetry Fetch Failure: ", error);
+                    document.getElementById('api-status').innerText = 'OFFLINE EMULATOR';
+                    document.getElementById('api-status').className = 'text-amber-400 font-bold';
+                    
+                    // Inject Fallback Mock seismic data
+                    loadMockSeismicData();
+                    renderSidebarFilters('seismic');
+                    showLoading(false);
+                });
+        }
+
+        function loadMockSeismicData() {
+            const mockEvents = [
+                { lat: 0.62, lon: 2.42, mag: 7.2, name: 'M7.2 - Fukushima Coast' },
+                { lat: 0.64, lon: -2.12, mag: 5.4, name: 'M5.4 - San Andreas Fault' },
+                { lat: 0.66, lon: 0.22, mag: 4.1, name: 'M4.1 - Mediterranean Ridge' }
+            ];
+            mockEvents.forEach(e => {
+                threats.push({
+                    type: 'seismic',
+                    lat: e.lat,
+                    lon: e.lon,
+                    intensity: e.mag / 9.0,
+                    name: e.name,
+                    mag: e.mag,
+                    color: e.mag >= 6.0 ? '#ef4444' : (e.mag >= 4.0 ? '#f59e0b' : '#10b981'),
+                    age: Math.floor(Math.random() * 100),
+                    maxAge: 180
+                });
+            });
+        }
+
+        // --- VORTEX RADAR FEEDS SIMULATION ---
+        function fetchVortexData() {
+            // Emulate live satellite query timing
+            setTimeout(() => {
+                const storms = [
+                    { lat: 0.35, lon: -1.15, cat: 4, name: 'HURRICANE KATE', speed: 135 },
+                    { lat: 0.22, lon: 2.15, cat: 3, name: 'TYPHOON GENEVA', speed: 110 }
+                ];
+                storms.forEach(s => {
+                    threats.push({
+                        type: 'vortex',
+                        lat: s.lat,
+                        lon: s.lon,
+                        intensity: s.cat / 5.0,
+                        name: s.name,
+                        windSpeed: s.speed,
+                        category: s.cat,
+                        age: 0,
+                        maxAge: 240
+                    });
+                });
+                
+                renderSidebarFilters('vortex');
+                showLoading(false);
+            }, 800);
+        }
+
+        // --- NOAA WEATHER SEVERE HAZARDS FETCH PIPELINE ---
+        function fetchSevereAlerts() {
+            const url = 'https://api.weather.gov/alerts/active?status=actual';
+            
+            fetch(url)
+                .then(response => {
+                    if (!response.ok) throw new Error("NOAA server responded with code: " + response.status);
+                    return response.json();
+                })
+                .then(data => {
+                    console.log(`Fetched NOAA Active Alerts: ${data.features.length} alerts parsed.`);
+                    
+                    const alertsList = [];
+                    let count = 0;
+
+                    data.features.forEach(feature => {
+                        const props = feature.properties;
+                        const geom = feature.geometry;
+                        
+                        // Extract coordinate point from NOAA features geometry if available
+                        let lat = null, lon = null;
+                        if (geom && geom.coordinates && geom.coordinates.length > 0) {
+                            if (geom.type === 'Polygon') {
+                                // Extract first polygon ring coordinate centroid
+                                const pts = geom.coordinates[0];
+                                let sumLat = 0, sumLon = 0;
+                                pts.forEach(p => { sumLon += p[0]; sumLat += p[1]; });
+                                lat = sumLat / pts.length;
+                                lon = sumLon / pts.length;
+                            } else if (geom.type === 'Point') {
+                                lat = geom.coordinates[1];
+                                lon = geom.coordinates[0];
+                            }
+                        }
+
+                        // Map state descriptions or geocodes to approximate locations if geometry is null
+                        if (lat === null) {
+                            // Target regions by area description matching US states
+                            const area = props.areaDesc || '';
+                            if (area.includes('TX')) { lat = 31.0; lon = -100.0; }
+                            else if (area.includes('FL')) { lat = 27.5; lon = -82.0; }
+                            else if (area.includes('CA')) { lat = 37.0; lon = -120.0; }
+                            else if (area.includes('NY')) { lat = 42.0; lon = -75.0; }
+                            else if (area.includes('KS')) { lat = 38.5; lon = -98.0; }
+                            else if (area.includes('AK')) { lat = 64.0; lon = -150.0; }
+                            else {
+                                // Spread out random points in US boundaries
+                                lat = 32 + Math.random() * 14;
+                                lon = -120 + Math.random() * 45;
+                            }
+                        }
+
+                        // Push dynamic threat structures
+                        const latRad = lat * Math.PI / 180;
+                        const lonRad = lon * Math.PI / 180;
+                        const eventName = props.event || 'Severe Warning';
+                        const severity = props.severity || 'Minor';
+                        const headline = props.headline || 'Meteorological Hazard Alert';
+
+                        let category = 'Flood';
+                        if (eventName.toLowerCase().includes('tornado')) category = 'Tornado';
+                        else if (eventName.toLowerCase().includes('winter') || eventName.toLowerCase().includes('blizzard')) category = 'Blizzard';
+                        else if (eventName.toLowerCase().includes('fire') || eventName.toLowerCase().includes('smoke')) category = 'Wildfire';
+
+                        let alert = 'Yellow Advisory';
+                        if (severity === 'Severe') alert = 'Orange Watch';
+                        if (severity === 'Extreme') alert = 'Red Warning';
+
+                        // Limit elements mapped on the 3D globe to avoid performance hits
+                        if (count < 30) {
+                            threats.push({
+                                type: 'hazard',
+                                lat: latRad,
+                                lon: lonRad,
+                                intensity: severity === 'Extreme' ? 0.95 : (severity === 'Severe' ? 0.75 : 0.45),
+                                alert: alert,
+                                category: category,
+                                name: eventName,
+                                age: Math.floor(Math.random() * 100),
+                                maxAge: 200
+                            });
+                            count++;
+                        }
+
+                        // Accumulate details for the severe sidebar list
+                        alertsList.push({
+                            headline: headline,
+                            severity: severity,
+                            event: eventName,
+                            area: props.areaDesc
+                        });
+                    });
+
+                    document.getElementById('api-status').innerText = 'ONLINE';
+                    document.getElementById('api-status').className = 'text-emerald-400 font-bold';
+
+                    renderSidebarFilters('hazards', alertsList);
+                    showLoading(false);
+                })
+                .catch(error => {
+                    console.error("NOAA Active Alerts Fetch Failure: ", error);
+                    document.getElementById('api-status').innerText = 'OFFLINE EMULATOR';
+                    document.getElementById('api-status').className = 'text-amber-400 font-bold';
+                    
+                    // Fallback alerts list mapping
+                    const mockAlerts = [
+                        { headline: "Tornado Warning issued for Wichita, KS", severity: "Extreme", event: "Tornado Warning", area: "KS", lat: 38.5, lon: -98.0 },
+                        { headline: "Flash Flood Warning issued for San Antonio, TX", severity: "Severe", event: "Flash Flood Warning", area: "TX", lat: 31.0, lon: -100.0 },
+                        { headline: "Extreme Wildfire watch declared for San Diego, CA", severity: "Severe", event: "Red Flag Warning", area: "CA", lat: 37.0, lon: -120.0 }
+                    ];
+
+                    mockAlerts.forEach(a => {
+                        threats.push({
+                            type: 'hazard',
+                            lat: a.lat * Math.PI / 180,
+                            lon: a.lon * Math.PI / 180,
+                            intensity: a.severity === 'Extreme' ? 0.95 : 0.75,
+                            alert: a.severity === 'Extreme' ? 'Red Warning' : 'Orange Watch',
+                            category: a.event.includes('Tornado') ? 'Tornado' : (a.event.includes('Flood') ? 'Flood' : 'Wildfire'),
+                            name: a.event,
+                            age: Math.floor(Math.random() * 100),
+                            maxAge: 200
+                        });
+                    });
+
+                    renderSidebarFilters('hazards', mockAlerts);
+                    showLoading(false);
+                });
+        }
+
+        // --- FILTER RENDER WITH EMULATED/REAL SIDEBAR LISTS ---
+        function renderSidebarFilters(tabName, fetchedAlerts = null) {
             const container = document.getElementById('dynamic-filters');
             let html = '';
             
@@ -423,6 +693,31 @@
                     </div>
                 `;
             } else if (tabName === 'hazards') {
+                // Generate alerts list output inside sidebar container
+                let alertsHTML = '';
+                if (fetchedAlerts && fetchedAlerts.length > 0) {
+                    alertsHTML = `<div class="space-y-3 max-h-96 overflow-y-auto pr-1">`;
+                    fetchedAlerts.slice(0, 10).forEach(alert => {
+                        let badgeColor = 'bg-rose-950/60 text-rose-400 border border-rose-500/20';
+                        if (alert.severity === 'Severe') badgeColor = 'bg-orange-950/60 text-orange-400 border border-orange-500/20';
+                        if (alert.severity === 'Minor' || alert.severity === 'Moderate') badgeColor = 'bg-yellow-950/60 text-yellow-400 border border-yellow-500/20';
+
+                        alertsHTML += `
+                            <div class="p-3 bg-slate-950/50 rounded border border-slate-800 text-2xs space-y-1.5">
+                                <div class="flex justify-between items-center gap-2">
+                                    <span class="font-bold uppercase tracking-wider truncate max-w-[130px]">${alert.event}</span>
+                                    <span class="px-1.5 py-0.5 rounded font-bold text-3xs ${badgeColor}">${alert.severity.toUpperCase()}</span>
+                                </div>
+                                <p class="text-slate-400 font-sans tracking-wide leading-tight">${alert.headline}</p>
+                                <div class="text-3xs text-slate-500">AREA: ${alert.area.substring(0, 40)}${alert.area.length > 40 ? '...' : ''}</div>
+                            </div>
+                        `;
+                    });
+                    alertsHTML += `</div>`;
+                } else {
+                    alertsHTML = `<div class="text-2xs text-slate-500 italic">No real-time NOAA reports available inside this boundary.</div>`;
+                }
+
                 html = `
                     <div class="space-y-3">
                         <label class="block text-xs font-bold uppercase tracking-wider text-rose-400">Alert Severity Watch</label>
@@ -438,48 +733,15 @@
                                 onchange="updateFilter('hazards', 'orange', this.checked)">
                             <span class="text-xs text-slate-300 group-hover:text-rose-400 transition-colors">Orange Watch (Severe)</span>
                         </label>
-                        <label class="flex items-center gap-3 cursor-pointer group">
-                            <input type="checkbox" ${state.hazards.yellow ? 'checked' : ''} 
-                                class="w-4 h-4 bg-slate-900 border-slate-700 rounded text-rose-500 focus:ring-0 cursor-pointer accent-rose-400"
-                                onchange="updateFilter('hazards', 'yellow', this.checked)">
-                            <span class="text-xs text-slate-300 group-hover:text-rose-400 transition-colors">Yellow Advisory (Mild)</span>
-                        </label>
                     </div>
 
                     <div class="space-y-3 pt-2">
-                        <label class="block text-xs font-bold uppercase tracking-wider text-slate-400">Active Threat Profiles</label>
-                        <label class="flex items-center gap-3 cursor-pointer group">
-                            <input type="checkbox" ${state.hazards.tornadoes ? 'checked' : ''} 
-                                class="w-4 h-4 bg-slate-900 border-slate-700 rounded text-rose-500 focus:ring-0 cursor-pointer accent-rose-400"
-                                onchange="updateFilter('hazards', 'tornadoes', this.checked)">
-                            <span class="text-xs text-slate-300 group-hover:text-rose-400 transition-colors">Tornado Funnels</span>
-                        </label>
-                        <label class="flex items-center gap-3 cursor-pointer group">
-                            <input type="checkbox" ${state.hazards.blizzards ? 'checked' : ''} 
-                                class="w-4 h-4 bg-slate-900 border-slate-700 rounded text-rose-500 focus:ring-0 cursor-pointer accent-rose-400"
-                                onchange="updateFilter('hazards', 'blizzards', this.checked)">
-                            <span class="text-xs text-slate-300 group-hover:text-rose-400 transition-colors">Severe Blizzards</span>
-                        </label>
-                        <label class="flex items-center gap-3 cursor-pointer group">
-                            <input type="checkbox" ${state.hazards.floods ? 'checked' : ''} 
-                                class="w-4 h-4 bg-slate-900 border-slate-700 rounded text-rose-500 focus:ring-0 cursor-pointer accent-rose-400"
-                                onchange="updateFilter('hazards', 'floods', this.checked)">
-                            <span class="text-xs text-slate-300 group-hover:text-rose-400 transition-colors">Flash Flooding</span>
-                        </label>
-                        <label class="flex items-center gap-3 cursor-pointer group">
-                            <input type="checkbox" ${state.hazards.wildfires ? 'checked' : ''} 
-                                class="w-4 h-4 bg-slate-900 border-slate-700 rounded text-rose-500 focus:ring-0 cursor-pointer accent-rose-400"
-                                onchange="updateFilter('hazards', 'wildfires', this.checked)">
-                            <span class="text-xs text-slate-300 group-hover:text-rose-400 transition-colors">Active Wildfires</span>
-                        </label>
+                        <label class="block text-xs font-bold uppercase tracking-wider text-rose-400">Live emergency reports</label>
+                        ${alertsHTML}
                     </div>
                 `;
             }
             container.innerHTML = html;
-        }
-
-        function updateFilter(category, filterName, value) {
-            state[category][filterName] = value;
         }
 
         // --- MOUSE DRAG & TOUCH SWIPE SPIN GLOBE CONTROLS ---
@@ -547,13 +809,11 @@
 
         // --- CLICK GLOBE & SPAWN THREAT SYSTEM ---
         function handleCanvasClick(e) {
-            // Prevent spawning threat if we were dragging
             if (Math.abs(e.clientX - startMouseX) > 3 || Math.abs(e.clientY - startMouseY) > 3) {
                 return;
             }
 
             const rect = canvas.getBoundingClientRect();
-            // Normal coords relative to canvas display
             const px = e.clientX - rect.left;
             const py = e.clientY - rect.top;
 
@@ -564,10 +824,9 @@
             const R = Math.min(w, h) * R_factor;
 
             const dx = px - centerX;
-            const dy = centerY - py; // Flip Y for standard Cartesian
+            const dy = centerY - py;
 
             if (dx*dx + dy*dy <= R*R) {
-                // Click landed inside the sphere! 
                 const zr = Math.sqrt(R*R - dx*dx - dy*dy);
                 const xr = dx;
                 const yr = dy;
@@ -577,7 +836,7 @@
                 const sinTx = Math.sin(-rotX);
                 const y1 = yr * cosTx - zr * sinTx;
                 const z1 = yr * sinTx + zr * cosTx;
-                const x1 = xr; // X unaffected by X-axis tilt
+                const x1 = xr;
 
                 // Reverse Y-axis spin (rotate around Y axis by -rotY)
                 const cosTy = Math.cos(-rotY);
@@ -592,12 +851,15 @@
 
                 // Add threat based on active tab
                 if (state.activeTab === 'seismic') {
+                    const mag = state.seismic.magnitude;
                     threats.push({
                         type: 'seismic',
                         lat: clickedLat,
                         lon: clickedLon,
-                        intensity: state.seismic.magnitude / 10.0,
-                        name: `EQ-${state.seismic.magnitude.toFixed(1)}`,
+                        intensity: mag / 10.0,
+                        name: `M${mag.toFixed(1)} - USER TRIGGER`,
+                        mag: mag,
+                        color: mag >= 6.0 ? '#ef4444' : (mag >= 4.0 ? '#f59e0b' : '#10b981'),
                         age: 0,
                         maxAge: 180
                     });
@@ -607,7 +869,9 @@
                         lat: clickedLat,
                         lon: clickedLon,
                         intensity: state.vortex.category / 5.0,
-                        name: `ST-CAT${state.vortex.category}`,
+                        name: `USER ST-CAT${state.vortex.category}`,
+                        windSpeed: state.vortex.windSpeed,
+                        category: state.vortex.category,
                         age: 0,
                         maxAge: 240
                     });
@@ -628,6 +892,7 @@
                         intensity: state.hazards.red ? 0.95 : (state.hazards.orange ? 0.75 : 0.45),
                         alert: alert,
                         category: type,
+                        name: `USER ${type.toUpperCase()}`,
                         age: 0,
                         maxAge: 200
                     });
@@ -648,7 +913,7 @@
 
                 // Smooth rotation interpolation
                 if (!isDragging) {
-                    targetRotY += 0.0015; // Slow ambient spin
+                    targetRotY += 0.0015; // Ambient spin
                 }
                 rotX += (targetRotX - rotX) * 0.15;
                 rotY += (targetRotY - rotY) * 0.15;
@@ -670,7 +935,6 @@
 
         function drawBackgroundStars(w, h) {
             ctx.fillStyle = 'rgba(255, 255, 255, 0.15)';
-            // Draw static mock telemetry background sparks
             ctx.beginPath();
             ctx.arc(w * 0.1, h * 0.15, 1, 0, 2 * Math.PI);
             ctx.arc(w * 0.85, h * 0.2, 0.8, 0, 2 * Math.PI);
@@ -679,27 +943,22 @@
             ctx.fill();
         }
 
-        // Renders minimalist, dark-gray wireframe sphere (front brighter, back darker)
         function draw3DGlobe(cx, cy, R) {
             const numLatSegments = 12;
             const numLonSegments = 16;
             const numPointsPerRing = 45;
 
-            // Define wireframe theme colors
-            const gridColorFront = 'rgba(51, 65, 85, 0.5)';  // slate-700
-            const gridColorBack = 'rgba(30, 41, 59, 0.12)';  // slate-800
+            const gridColorFront = 'rgba(51, 65, 85, 0.5)';
+            const gridColorBack = 'rgba(30, 41, 59, 0.12)';
 
-            // 1. Draw Latitudinal Ring Lines (horizontal rings)
+            // Latitudinal lines
             for (let i = 1; i < numLatSegments; i++) {
                 const lat = -Math.PI / 2 + (Math.PI / numLatSegments) * i;
-                
                 ctx.beginPath();
                 let lastPt = null;
-                
                 for (let j = 0; j <= numPointsPerRing; j++) {
                     const lon = (Math.PI * 2 / numPointsPerRing) * j;
                     const pt = project3DPoint(lat, lon, R, cx, cy);
-                    
                     if (j > 0 && lastPt && pt) {
                         ctx.strokeStyle = pt.z > 0 ? gridColorFront : gridColorBack;
                         ctx.lineWidth = pt.z > 0 ? 0.75 : 0.4;
@@ -712,17 +971,14 @@
                 }
             }
 
-            // 2. Draw Longitudinal Ring Lines (vertical slices)
+            // Longitudinal lines
             for (let i = 0; i < numLonSegments; i++) {
                 const lon = (Math.PI * 2 / numLonSegments) * i;
-                
                 ctx.beginPath();
                 let lastPt = null;
-                
                 for (let j = 0; j <= numPointsPerRing; j++) {
                     const lat = -Math.PI / 2 + (Math.PI / numPointsPerRing) * j;
                     const pt = project3DPoint(lat, lon, R, cx, cy);
-                    
                     if (j > 0 && lastPt && pt) {
                         ctx.strokeStyle = pt.z > 0 ? gridColorFront : gridColorBack;
                         ctx.lineWidth = pt.z > 0 ? 0.75 : 0.4;
@@ -735,14 +991,14 @@
                 }
             }
 
-            // 3. Draw outer bounding ring silhouette
-            ctx.strokeStyle = '#334155'; // slate-700
+            // Outline boundary
+            ctx.strokeStyle = '#334155';
             ctx.lineWidth = 1.5;
             ctx.beginPath();
             ctx.arc(cx, cy, R, 0, 2 * Math.PI);
             ctx.stroke();
 
-            // Radar scan overlay sweeping over globe
+            // Sweeping radar scan
             const scanLineAngle = Date.now() * 0.001;
             ctx.strokeStyle = 'rgba(52, 211, 153, 0.06)';
             ctx.fillStyle = 'rgba(52, 211, 153, 0.015)';
@@ -754,30 +1010,25 @@
             ctx.stroke();
         }
 
-        // Map spherical coordinate to projected screen coordinates
+        // Map spherical coordinates to 3D Cartesian rotated coords
         function project3DPoint(lat, lon, R, cx, cy) {
-            // Spherical to 3D Cartesian
             const x = R * Math.cos(lat) * Math.sin(lon);
             const y = R * Math.sin(lat);
             const z = R * Math.cos(lat) * Math.cos(lon);
 
-            // Rotate Y-axis (Spin)
+            // Spin Y
             const cosY = Math.cos(rotY);
             const sinY = Math.sin(rotY);
             const x1 = x * cosY - z * sinY;
             const z1 = x * sinY + z * cosY;
 
-            // Rotate X-axis (Tilt)
+            // Tilt X
             const cosX = Math.cos(rotX);
             const sinX = Math.sin(rotX);
             const y2 = y * cosX - z1 * sinX;
             const z2 = y * sinX + z1 * cosX;
 
-            return {
-                x: cx + x1,
-                y: cy - y2, // standard inverted Y axis
-                z: z2       // Depth tracking
-            };
+            return { x: cx + x1, y: cy - y2, z: z2 };
         }
 
         // --- GLOBAL THREAT POINT TRACKING & RIPPLE ANIMATION ---
@@ -788,57 +1039,67 @@
                 // Increment life age
                 threat.age = (threat.age + 1) % threat.maxAge;
                 
-                // Project 3D threat point on rotating globe
+                // Project 3D threat coordinates
                 const pt = project3DPoint(threat.lat, threat.lon, R, cx, cy);
                 
-                // Render point only if facing front camera (z > 0)
+                // Draw active points facing camera
                 if (pt.z > 0) {
                     const isActiveType = threat.type === state.activeTab;
-                    const baseAlpha = isActiveType ? 0.95 : 0.25; // Dim inactive tab threats
+                    const baseAlpha = isActiveType ? 0.95 : 0.15; // Dim inactive layers
                     
-                    // Determine theme accent colors
-                    let color = '244, 63, 94'; // rose (hazard)
-                    if (threat.type === 'seismic') color = '52, 211, 153';  // emerald
-                    if (threat.type === 'vortex') color = '34, 211, 238';   // cyan
+                    // Specific event color matching
+                    let colorRGB = '244, 63, 94'; // rose (hazards)
+                    if (threat.type === 'seismic') {
+                        // Color matching earthquakes severity code
+                        if (threat.color === '#f59e0b') colorRGB = '245, 158, 11'; // Amber
+                        else if (threat.color === '#ef4444') colorRGB = '239, 68, 68'; // Red
+                        else colorRGB = '52, 211, 153'; // Green
+                    } else if (threat.type === 'vortex') {
+                        colorRGB = '34, 211, 238'; // cyan
+                    }
 
-                    // Draw solid epicenter pinpoint dot
-                    ctx.fillStyle = `rgba(${color}, ${baseAlpha})`;
+                    // Dot pinpoint
+                    ctx.fillStyle = `rgba(${colorRGB}, ${baseAlpha})`;
+                    
+                    // Flashing red for major seismic quakes (>M6.0)
+                    if (threat.type === 'seismic' && threat.mag >= 6.0 && isActiveType) {
+                        const flash = (Math.floor(Date.now() / 250) % 2 === 0) ? 1.0 : 0.3;
+                        ctx.fillStyle = `rgba(239, 68, 68, ${flash})`;
+                    }
+
                     ctx.beginPath();
                     ctx.arc(pt.x, pt.y, isActiveType ? 4.5 : 2.5, 0, 2 * Math.PI);
                     ctx.fill();
 
                     // Expanding concentric ripples calculation
-                    const intensity = threat.intensity; // scale factor
+                    const intensity = threat.intensity;
                     const ringCount = 3;
                     
                     for (let r = 0; r < ringCount; r++) {
-                        // Offset ring startup ages
                         const ringAge = (threat.age + (r * (threat.maxAge / ringCount))) % threat.maxAge;
                         const progress = ringAge / threat.maxAge;
                         
                         const radius = progress * (45 * intensity);
                         const alpha = (1 - progress) * baseAlpha;
 
-                        ctx.strokeStyle = `rgba(${color}, ${alpha})`;
+                        ctx.strokeStyle = `rgba(${colorRGB}, ${alpha})`;
                         ctx.lineWidth = isActiveType ? (2 * (1 - progress)) : 0.75;
                         ctx.beginPath();
                         ctx.arc(pt.x, pt.y, radius, 0, 2 * Math.PI);
                         ctx.stroke();
                     }
 
-                    // Render labeling metadata
+                    // Labels
                     if (isActiveType) {
-                        ctx.fillStyle = `rgba(${color}, 0.85)`;
+                        ctx.fillStyle = `rgba(${colorRGB}, 0.85)`;
                         ctx.font = '8px "JetBrains Mono"';
                         
                         if (threat.type === 'seismic') {
                             ctx.fillText(threat.name, pt.x + 8, pt.y - 4);
-                            ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
-                            ctx.fillText(`D: ${state.seismic.depth}km`, pt.x + 8, pt.y + 6);
                         } else if (threat.type === 'vortex') {
-                            ctx.fillText(`${threat.name}`, pt.x + 8, pt.y - 4);
+                            ctx.fillText(threat.name, pt.x + 8, pt.y - 4);
                             ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
-                            ctx.fillText(`${state.vortex.windSpeed}KT`, pt.x + 8, pt.y + 6);
+                            ctx.fillText(`CAT ${threat.category} - ${threat.windSpeed}KT`, pt.x + 8, pt.y + 6);
                         } else if (threat.type === 'hazard') {
                             ctx.fillText(threat.category.toUpperCase(), pt.x + 8, pt.y - 4);
                             ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
@@ -860,7 +1121,7 @@
 
         // Fluctuations simulation
         function simulateTelemetryRate() {
-            const val = (42 + Math.random() * 10).toFixed(1);
+            const val = (38 + Math.random() * 15).toFixed(1);
             document.getElementById('data-rate').innerText = `${val} MB/s`;
         }
     </script>
