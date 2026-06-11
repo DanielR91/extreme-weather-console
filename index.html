@@ -168,10 +168,6 @@
                         <kbd class="bg-slate-950 px-1 border border-slate-700 rounded text-slate-300">Drag / Swipe</kbd>
                         <span>Rotate 3D Wireframe Globe</span>
                     </div>
-                    <div class="flex items-center gap-2">
-                        <kbd class="bg-slate-950 px-1 border border-slate-700 rounded text-slate-300">Click Globe</kbd>
-                        <span>Spawn threat at 3D coordinate</span>
-                    </div>
                     <div id="tab-instruction">Adjust sliders to see canvas reaction in real-time.</div>
                 </div>
             </div>
@@ -248,9 +244,6 @@
             canvas.addEventListener('touchstart', handleTouchStart, { passive: false });
             canvas.addEventListener('touchmove', handleTouchMove, { passive: false });
             canvas.addEventListener('touchend', handleTouchEnd);
-            
-            // Click to spawn threat
-            canvas.addEventListener('click', handleCanvasClick);
             
             // Render first tab controls and load data
             switchTab('seismic');
@@ -805,100 +798,6 @@
             const x = (e.clientX - rect.left) * scaleX;
             const y = (e.clientY - rect.top) * scaleY;
             document.getElementById('coordinates').innerText = `X: ${x.toFixed(0)} Y: ${y.toFixed(0)}`;
-        }
-
-        // --- CLICK GLOBE & SPAWN THREAT SYSTEM ---
-        function handleCanvasClick(e) {
-            if (Math.abs(e.clientX - startMouseX) > 3 || Math.abs(e.clientY - startMouseY) > 3) {
-                return;
-            }
-
-            const rect = canvas.getBoundingClientRect();
-            const px = e.clientX - rect.left;
-            const py = e.clientY - rect.top;
-
-            const w = rect.width;
-            const h = rect.height;
-            const centerX = w / 2;
-            const centerY = h / 2;
-            const R = Math.min(w, h) * R_factor;
-
-            const dx = px - centerX;
-            const dy = centerY - py;
-
-            if (dx*dx + dy*dy <= R*R) {
-                const zr = Math.sqrt(R*R - dx*dx - dy*dy);
-                const xr = dx;
-                const yr = dy;
-
-                // Reverse X-axis tilt (rotate around X axis by -rotX)
-                const cosTx = Math.cos(-rotX);
-                const sinTx = Math.sin(-rotX);
-                const y1 = yr * cosTx - zr * sinTx;
-                const z1 = yr * sinTx + zr * cosTx;
-                const x1 = xr;
-
-                // Reverse Y-axis spin (rotate around Y axis by -rotY)
-                const cosTy = Math.cos(-rotY);
-                const sinTy = Math.sin(-rotY);
-                const x0 = x1 * cosTy - z1 * sinTy;
-                const z0 = x1 * sinTy + z1 * cosTy;
-                const y0 = y1;
-
-                // Convert unrotated 3D vector to lat / lon spherical coordinates
-                const clickedLat = Math.asin(y0 / R);
-                const clickedLon = Math.atan2(x0, z0);
-
-                // Add threat based on active tab
-                if (state.activeTab === 'seismic') {
-                    const mag = state.seismic.magnitude;
-                    threats.push({
-                        type: 'seismic',
-                        lat: clickedLat,
-                        lon: clickedLon,
-                        intensity: mag / 10.0,
-                        name: `M${mag.toFixed(1)} - USER TRIGGER`,
-                        mag: mag,
-                        color: mag >= 6.0 ? '#ef4444' : (mag >= 4.0 ? '#f59e0b' : '#10b981'),
-                        age: 0,
-                        maxAge: 180
-                    });
-                } else if (state.activeTab === 'vortex') {
-                    threats.push({
-                        type: 'vortex',
-                        lat: clickedLat,
-                        lon: clickedLon,
-                        intensity: state.vortex.category / 5.0,
-                        name: `USER ST-CAT${state.vortex.category}`,
-                        windSpeed: state.vortex.windSpeed,
-                        category: state.vortex.category,
-                        age: 0,
-                        maxAge: 240
-                    });
-                } else if (state.activeTab === 'hazards') {
-                    const threatTypes = [];
-                    if (state.hazards.tornadoes) threatTypes.push('Tornado');
-                    if (state.hazards.blizzards) threatTypes.push('Blizzard');
-                    if (state.hazards.floods) threatTypes.push('Flood');
-                    if (state.hazards.wildfires) threatTypes.push('Wildfire');
-                    
-                    const type = threatTypes.length > 0 ? threatTypes[Math.floor(Math.random() * threatTypes.length)] : 'Hazard';
-                    const alert = state.hazards.red ? 'Red Warning' : (state.hazards.orange ? 'Orange Watch' : 'Yellow Advisory');
-
-                    threats.push({
-                        type: 'hazard',
-                        lat: clickedLat,
-                        lon: clickedLon,
-                        intensity: state.hazards.red ? 0.95 : (state.hazards.orange ? 0.75 : 0.45),
-                        alert: alert,
-                        category: type,
-                        name: `USER ${type.toUpperCase()}`,
-                        age: 0,
-                        maxAge: 200
-                    });
-                }
-                console.log(`Placed threat at Spherical Lat: ${(clickedLat * 180 / Math.PI).toFixed(1)}°, Lon: ${(clickedLon * 180 / Math.PI).toFixed(1)}°`);
-            }
         }
 
         // --- 3D ORTHOGRAPHIC PROJECTION & ANIMATION ENGINE ---
