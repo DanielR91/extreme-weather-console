@@ -234,6 +234,7 @@
 
         // Master Threat Coordinate Data (lat/lon in radians, intensity 0..1)
         let threats = [];
+        let hazards = [];
 
         // Canvas & Context Setup
         let canvas, ctx, animationFrameId;
@@ -370,6 +371,9 @@
             
             // Clear current canvas active rendering threats to switch feeds smoothly
             threats = threats.filter(t => t.type !== state.activeTab);
+            if (state.activeTab === 'hazards') {
+                hazards = [];
+            }
 
             if (state.activeTab === 'seismic') {
                 fetchEarthquakes();
@@ -700,7 +704,7 @@
 
                         // Limit elements mapped on the 3D globe to avoid performance hits
                         if (count < 35) {
-                            threats.push({
+                            hazards.push({
                                 type: 'hazard',
                                 lat: hazard.lat,
                                 lon: hazard.lon,
@@ -747,7 +751,7 @@
                             lon: a.lon * Math.PI / 180,
                             name: a.event || a.headline || "Severe Hazard"
                         };
-                        threats.push({
+                        hazards.push({
                             type: 'hazard',
                             lat: hazard.lat,
                             lon: hazard.lon,
@@ -1245,8 +1249,63 @@
 
         // --- GLOBAL THREAT POINT TRACKING & RIPPLE ANIMATION ---
         function renderPoints(cx, cy, R) {
+            if (state.activeTab === 'hazards') {
+                hazards.forEach(hazard => {
+                    if (!hazard.name) {
+                        console.warn("Missing hazard name for point:", hazard);
+                    }
+                    
+                    // Increment life age
+                    hazard.age = (hazard.age + 1) % hazard.maxAge;
+                    
+                    // Project 3D hazard coordinates
+                    const pt = project3DPoint(hazard.lat, hazard.lon, R, cx, cy);
+                    
+                    // Draw active points facing camera
+                    if (pt && pt.z > 0) {
+                        // Pulsing hazard warning marker
+                        const pulse = 1 + 0.25 * Math.sin(Date.now() * 0.008);
+                        const dotRadius = 5.0 * pulse;
+                        ctx.fillStyle = `rgba(250, 204, 21, 0.95)`;
+                        
+                        ctx.beginPath();
+                        ctx.arc(pt.x, pt.y, dotRadius, 0, 2 * Math.PI);
+                        ctx.fill();
+
+                        // Expanding concentric ripples calculation
+                        const intensity = hazard.intensity || 0.5;
+                        const ringCount = 3;
+                        for (let r = 0; r < ringCount; r++) {
+                            const ringAge = (hazard.age + (r * (hazard.maxAge / ringCount))) % hazard.maxAge;
+                            const progress = ringAge / hazard.maxAge;
+                            
+                            const radius = progress * (45 * intensity);
+                            const alpha = (1 - progress) * 0.95;
+
+                            ctx.strokeStyle = `rgba(250, 204, 21, ${alpha})`;
+                            ctx.lineWidth = 2 * (1 - progress);
+                            ctx.beginPath();
+                            ctx.arc(pt.x, pt.y, radius, 0, 2 * Math.PI);
+                            ctx.stroke();
+                        }
+
+                        // Text rendering context setup
+                        ctx.globalAlpha = 1.0; 
+                        ctx.font = 'bold 11px sans-serif'; 
+                        ctx.fillStyle = '#FFFFFF'; 
+                        ctx.textAlign = 'left';
+                        ctx.textBaseline = 'middle';
+
+                        ctx.fillText(hazard.name, pt.x + 10, pt.y);
+                    }
+                });
+                return; // Strictly isolate: ONLY hazards are drawn!
+            }
+
+            // Otherwise (Tab 1 or 2 is active), render seismic and vortex threats
             for (let i = 0; i < threats.length; i++) {
                 const threat = threats[i];
+                if (threat.type === 'hazard') continue;
                 
                 // Seismic filtering conditions
                 if (threat.type === 'seismic') {
@@ -1309,36 +1368,11 @@
                     if (threat.type === 'seismic' && threat.mag >= 6.0 && isActiveType) {
                         const flash = (Math.floor(Date.now() / 250) % 2 === 0) ? 1.0 : 0.3;
                         ctx.fillStyle = `rgba(239, 68, 68, ${flash})`;
-                    } else if (threat.type === 'hazard' && isActiveType) {
-                        // Pulsing hazard warning marker
-                        const pulse = 1 + 0.25 * Math.sin(Date.now() * 0.008);
-                        dotRadius = 5.0 * pulse;
-                        ctx.fillStyle = `rgba(250, 204, 21, ${0.95 * baseAlpha})`;
                     }
 
                     ctx.beginPath();
                     ctx.arc(pt.x, pt.y, dotRadius, 0, 2 * Math.PI);
                     ctx.fill();
-
-                    if (threat.type === 'hazard' && isActiveType) {
-                        if (!threat.name) {
-                            console.warn("Missing hazard name for point:", threat);
-                        }
-                        // Force alpha back to 100% for text clarity
-                        ctx.globalAlpha = 1.0; 
-                        
-                        // Use a bulletproof system-fallback font string
-                        ctx.font = 'bold 11px sans-serif'; 
-                        
-                        // Use a high-contrast pure white fill
-                        ctx.fillStyle = '#FFFFFF'; 
-                        
-                        // Set alignment properties explicitly
-                        ctx.textAlign = 'left';
-                        ctx.textBaseline = 'middle';
-
-                        ctx.fillText(threat.name || "Severe Hazard", pt.x + 10, pt.y);
-                    }
 
                     // Expanding concentric ripples calculation
                     const intensity = threat.intensity;
