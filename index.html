@@ -45,6 +45,9 @@
         .neon-glow-rose {
             box-shadow: 0 0 15px rgba(251, 113, 133, 0.2), inset 0 0 15px rgba(251, 113, 133, 0.1);
         }
+        .neon-glow-yellow {
+            box-shadow: 0 0 15px rgba(250, 204, 21, 0.2), inset 0 0 15px rgba(250, 204, 21, 0.1);
+        }
         /* Custom scrollbars */
         ::-webkit-scrollbar {
             width: 6px;
@@ -94,8 +97,8 @@
                 </svg>
                 Vortex Tracker
             </button>
-            <button id="tab-hazards" onclick="switchTab('hazards')" class="flex items-center gap-2 px-4 py-2 text-sm rounded-md font-medium tracking-wide transition-all duration-300 hover:text-rose-400">
-                <svg class="w-4 h-4 text-rose-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <button id="tab-hazards" onclick="switchTab('hazards')" class="flex items-center gap-2 px-4 py-2 text-sm rounded-md font-medium tracking-wide transition-all duration-300 hover:text-yellow-400">
+                <svg class="w-4 h-4 text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
                 </svg>
                 Severe Hazards
@@ -304,7 +307,7 @@
                 if (state.activeTab === 'vortex') {
                     colorClass = 'border-t-cyan-400 text-cyan-400';
                 } else if (state.activeTab === 'hazards') {
-                    colorClass = 'border-t-rose-400 text-rose-400';
+                    colorClass = 'border-t-yellow-400 text-yellow-400';
                 }
                 spinner.className = `w-10 h-10 border-4 border-slate-800 rounded-full animate-spin ${colorClass.split(' ')[0]}`;
                 label.className = `text-xs font-bold tracking-widest uppercase font-mono animate-pulse ${colorClass.split(' ')[1]}`;
@@ -332,8 +335,8 @@
                     instruction: 'Track dynamic weather events and cyclones along live orbital corridors.'
                 },
                 hazards: {
-                    tabClass: 'bg-rose-950/60 text-rose-400 border border-rose-500/30 neon-glow-rose',
-                    text: 'text-rose-400',
+                    tabClass: 'bg-yellow-950/60 text-yellow-400 border border-yellow-500/30 neon-glow-yellow',
+                    text: 'text-yellow-400',
                     viewTitle: '3D SEVERE HAZARDS GLOBE',
                     instruction: 'Display active alerts (Tornadoes, Floods, Blizzards) globally.'
                 }
@@ -653,84 +656,58 @@
                 });
         }
 
-        // --- NOAA WEATHER SEVERE HAZARDS FETCH PIPELINE ---
+        // --- GLOBAL GDACS SEVERE HAZARDS FETCH PIPELINE ---
         function fetchSevereAlerts() {
-            const url = 'https://api.weather.gov/alerts/active?status=actual';
+            const url = 'https://www.gdacs.org/gdacsapi/api/events/geteventlist/SEARCH?eventlist=FL;VO;WF';
             
             fetch(url)
                 .then(response => {
-                    if (!response.ok) throw new Error("NOAA server responded with code: " + response.status);
+                    if (!response.ok) throw new Error("GDACS server responded with code: " + response.status);
                     return response.json();
                 })
                 .then(data => {
-                    console.log(`Fetched NOAA Active Alerts: ${data.features.length} alerts parsed.`);
+                    console.log(`Fetched GDACS Active Alerts: ${data.features.length} alerts parsed.`);
                     
                     const alertsList = [];
                     let count = 0;
 
                     data.features.forEach(feature => {
-                        const props = feature.properties;
-                        const geom = feature.geometry;
-                        
-                        // Extract coordinate point from NOAA features geometry if available
-                        let lat = null, lon = null;
-                        if (geom && geom.coordinates && geom.coordinates.length > 0) {
-                            if (geom.type === 'Polygon') {
-                                // Extract first polygon ring coordinate centroid
-                                const pts = geom.coordinates[0];
-                                let sumLat = 0, sumLon = 0;
-                                pts.forEach(p => { sumLon += p[0]; sumLat += p[1]; });
-                                lat = sumLat / pts.length;
-                                lon = sumLon / pts.length;
-                            } else if (geom.type === 'Point') {
-                                lat = geom.coordinates[1];
-                                lon = geom.coordinates[0];
-                            }
-                        }
+                        const props = feature.properties || {};
+                        const geom = feature.geometry || {};
+                        const coordinates = geom.coordinates || [];
+                        const item = {
+                            ...props,
+                            latitude: coordinates[1] !== undefined ? coordinates[1] : null,
+                            longitude: coordinates[0] !== undefined ? coordinates[0] : null
+                        };
 
-                        // Map state descriptions or geocodes to approximate locations if geometry is null
-                        if (lat === null) {
-                            // Target regions by area description matching US states
-                            const area = props.areaDesc || '';
-                            if (area.includes('TX')) { lat = 31.0; lon = -100.0; }
-                            else if (area.includes('FL')) { lat = 27.5; lon = -82.0; }
-                            else if (area.includes('CA')) { lat = 37.0; lon = -120.0; }
-                            else if (area.includes('NY')) { lat = 42.0; lon = -75.0; }
-                            else if (area.includes('KS')) { lat = 38.5; lon = -98.0; }
-                            else if (area.includes('AK')) { lat = 64.0; lon = -150.0; }
-                            else {
-                                // Spread out random points in US boundaries
-                                lat = 32 + Math.random() * 14;
-                                lon = -120 + Math.random() * 45;
-                            }
-                        }
+                        if (item.latitude === null || item.longitude === null) return;
 
-                        // Push dynamic threat structures
-                        const latRad = lat * Math.PI / 180;
-                        const lonRad = lon * Math.PI / 180;
-                        const eventName = props.event || props.headline || "Severe Hazard";
-                        const severity = props.severity || 'Minor';
-                        const headline = props.headline || 'Meteorological Hazard Alert';
+                        const hazard = {
+                            lat: item.latitude * Math.PI / 180,
+                            lon: item.longitude * Math.PI / 180,
+                            name: item.eventname || item.description || "Severe Hazard"
+                        };
 
+                        // Map eventtype to standard categories
                         let category = 'Flood';
-                        if (eventName.toLowerCase().includes('tornado')) category = 'Tornado';
-                        else if (eventName.toLowerCase().includes('winter') || eventName.toLowerCase().includes('blizzard')) category = 'Blizzard';
-                        else if (eventName.toLowerCase().includes('fire') || eventName.toLowerCase().includes('smoke')) category = 'Wildfire';
+                        if (props.eventtype === 'VO') category = 'Volcano';
+                        else if (props.eventtype === 'WF') category = 'Wildfire';
 
                         let alert = 'Yellow Advisory';
-                        if (severity === 'Severe') alert = 'Orange Watch';
-                        if (severity === 'Extreme') alert = 'Red Warning';
+                        if (props.alertlevel === 'Orange') alert = 'Orange Watch';
+                        if (props.alertlevel === 'Red') alert = 'Red Warning';
 
                         // Limit elements mapped on the 3D globe to avoid performance hits
-                        if (count < 30) {
+                        if (count < 35) {
                             threats.push({
                                 type: 'hazard',
-                                lat: latRad,
-                                lon: lonRad,
-                                intensity: severity === 'Extreme' ? 0.95 : (severity === 'Severe' ? 0.75 : 0.45),
+                                lat: hazard.lat,
+                                lon: hazard.lon,
+                                intensity: props.alertlevel === 'Red' ? 0.95 : (props.alertlevel === 'Orange' ? 0.75 : 0.45),
                                 alert: alert,
                                 category: category,
-                                name: eventName,
+                                name: hazard.name,
                                 age: Math.floor(Math.random() * 100),
                                 maxAge: 200
                             });
@@ -739,10 +716,10 @@
 
                         // Accumulate details for the severe sidebar list
                         alertsList.push({
-                            headline: headline,
-                            severity: severity,
-                            event: eventName,
-                            area: props.areaDesc
+                            headline: item.description || item.htmldescription || "Global Emergency Alert",
+                            severity: props.alertlevel || "Moderate",
+                            event: hazard.name,
+                            area: props.country || "Global"
                         });
                     });
 
@@ -753,26 +730,31 @@
                     showLoading(false);
                 })
                 .catch(error => {
-                    console.error("NOAA Active Alerts Fetch Failure: ", error);
+                    console.error("GDACS Active Alerts Fetch Failure: ", error);
                     document.getElementById('api-status').innerText = 'OFFLINE EMULATOR';
                     document.getElementById('api-status').className = 'text-amber-400 font-bold';
                     
                     // Fallback alerts list mapping
                     const mockAlerts = [
-                        { headline: "Tornado Warning issued for Wichita, KS", severity: "Extreme", event: "Tornado Warning", area: "KS", lat: 38.5, lon: -98.0 },
-                        { headline: "Flash Flood Warning issued for San Antonio, TX", severity: "Severe", event: "Flash Flood Warning", area: "TX", lat: 31.0, lon: -100.0 },
-                        { headline: "Extreme Wildfire watch declared for San Diego, CA", severity: "Severe", event: "Red Flag Warning", area: "CA", lat: 37.0, lon: -120.0 }
+                        { headline: "Flood in South Africa", severity: "Orange", event: "Flood in South Africa", area: "South Africa", lat: -31.5891, lon: 28.7891 },
+                        { headline: "Eruption of Dukono Volcano", severity: "Orange", event: "Volcano Dukono", area: "Indonesia", lat: 1.6992, lon: 127.8783 },
+                        { headline: "Forest fires in Greece", severity: "Orange", event: "Forest fires in Greece", area: "Greece", lat: 35.0379, lon: 25.864 }
                     ];
 
                     mockAlerts.forEach(a => {
-                        threats.push({
-                            type: 'hazard',
+                        const hazard = {
                             lat: a.lat * Math.PI / 180,
                             lon: a.lon * Math.PI / 180,
-                            intensity: a.severity === 'Extreme' ? 0.95 : 0.75,
-                            alert: a.severity === 'Extreme' ? 'Red Warning' : 'Orange Watch',
-                            category: a.event.includes('Tornado') ? 'Tornado' : (a.event.includes('Flood') ? 'Flood' : 'Wildfire'),
-                            name: a.event,
+                            name: a.event || a.headline || "Severe Hazard"
+                        };
+                        threats.push({
+                            type: 'hazard',
+                            lat: hazard.lat,
+                            lon: hazard.lon,
+                            intensity: a.severity === 'Red' ? 0.95 : 0.75,
+                            alert: a.severity === 'Red' ? 'Red Warning' : 'Orange Watch',
+                            category: a.event.includes('Volcano') ? 'Volcano' : (a.event.includes('Flood') ? 'Flood' : 'Wildfire'),
+                            name: hazard.name,
                             age: Math.floor(Math.random() * 100),
                             maxAge: 200
                         });
@@ -945,15 +927,16 @@
                         });
                     }
                 }, 0);
+
             } else if (tabName === 'hazards') {
                 // Generate alerts list output inside sidebar container
                 let alertsHTML = '';
                 if (fetchedAlerts && fetchedAlerts.length > 0) {
                     alertsHTML = `<div class="space-y-3 max-h-96 overflow-y-auto pr-1">`;
                     fetchedAlerts.slice(0, 10).forEach(alert => {
-                        let badgeColor = 'bg-rose-950/60 text-rose-400 border border-rose-500/20';
-                        if (alert.severity === 'Severe') badgeColor = 'bg-orange-950/60 text-orange-400 border border-orange-500/20';
-                        if (alert.severity === 'Minor' || alert.severity === 'Moderate') badgeColor = 'bg-yellow-950/60 text-yellow-400 border border-yellow-500/20';
+                        let badgeColor = 'bg-yellow-950/60 text-yellow-400 border border-yellow-500/20';
+                        if (alert.severity === 'Red' || alert.severity === 'Extreme') badgeColor = 'bg-red-950/60 text-red-400 border border-red-500/20';
+                        if (alert.severity === 'Orange' || alert.severity === 'Severe') badgeColor = 'bg-orange-950/60 text-orange-400 border border-orange-500/20';
 
                         alertsHTML += `
                             <div class="p-3 bg-slate-950/50 rounded border border-slate-800 text-2xs space-y-1.5">
@@ -968,28 +951,28 @@
                     });
                     alertsHTML += `</div>`;
                 } else {
-                    alertsHTML = `<div class="text-2xs text-slate-500 italic">No real-time NOAA reports available inside this boundary.</div>`;
+                    alertsHTML = `<div class="text-2xs text-slate-500 italic">No real-time global GDACS reports available inside this boundary.</div>`;
                 }
 
                 html = `
                     <div class="space-y-3">
-                        <label class="block text-xs font-bold uppercase tracking-wider text-rose-400">Alert Severity Watch</label>
+                        <label class="block text-xs font-bold uppercase tracking-wider text-yellow-400">Alert Severity Watch</label>
                         <label class="flex items-center gap-3 cursor-pointer group">
                             <input type="checkbox" ${state.hazards.red ? 'checked' : ''} 
-                                class="w-4 h-4 bg-slate-900 border-slate-700 rounded text-rose-500 focus:ring-0 cursor-pointer accent-rose-400"
+                                class="w-4 h-4 bg-slate-900 border-slate-700 rounded text-yellow-500 focus:ring-0 cursor-pointer accent-yellow-400"
                                 onchange="updateFilter('hazards', 'red', this.checked)">
-                            <span class="text-xs text-slate-300 group-hover:text-rose-400 transition-colors">Red Warning (Extreme)</span>
+                            <span class="text-xs text-slate-300 group-hover:text-yellow-400 transition-colors">Red Warning (Extreme)</span>
                         </label>
                         <label class="flex items-center gap-3 cursor-pointer group">
                             <input type="checkbox" ${state.hazards.orange ? 'checked' : ''} 
-                                class="w-4 h-4 bg-slate-900 border-slate-700 rounded text-rose-500 focus:ring-0 cursor-pointer accent-rose-400"
+                                class="w-4 h-4 bg-slate-900 border-slate-700 rounded text-yellow-500 focus:ring-0 cursor-pointer accent-yellow-400"
                                 onchange="updateFilter('hazards', 'orange', this.checked)">
-                            <span class="text-xs text-slate-300 group-hover:text-rose-400 transition-colors">Orange Watch (Severe)</span>
+                            <span class="text-xs text-slate-300 group-hover:text-yellow-400 transition-colors">Orange Watch (Severe)</span>
                         </label>
                     </div>
 
                     <div class="space-y-3 pt-2">
-                        <label class="block text-xs font-bold uppercase tracking-wider text-rose-400">Live emergency reports</label>
+                        <label class="block text-xs font-bold uppercase tracking-wider text-yellow-400">Live emergency reports</label>
                         ${alertsHTML}
                     </div>
                 `;
@@ -1302,7 +1285,7 @@
                     const baseAlpha = isActiveType ? 0.95 : 0.15; // Dim inactive layers
                     
                     // Specific event color matching
-                    let colorRGB = '239, 68, 68'; // warning red (hazards)
+                    let colorRGB = '250, 204, 21'; // warning gold (hazards)
                     if (threat.type === 'seismic') {
                         if (threat.isVolcanic) {
                             colorRGB = '236, 72, 153'; // Neon fuchsia
@@ -1330,7 +1313,7 @@
                         // Pulsing hazard warning marker
                         const pulse = 1 + 0.25 * Math.sin(Date.now() * 0.008);
                         dotRadius = 5.0 * pulse;
-                        ctx.fillStyle = `rgba(239, 68, 68, ${0.9 * baseAlpha})`;
+                        ctx.fillStyle = `rgba(250, 204, 21, ${0.95 * baseAlpha})`;
                     }
 
                     ctx.beginPath();
