@@ -72,9 +72,9 @@
             </span>
             <div class="flex flex-col">
                 <h1 class="text-lg font-bold tracking-widest text-emerald-400 uppercase flex items-center gap-2">
-                    EXTREME WEATHER CONSOLE <span class="text-xs bg-slate-800 text-slate-400 px-2 py-0.5 rounded font-normal">v2.4.0</span>
+                    EXTREME WEATHER CONSOLE <span class="text-xs bg-slate-800 text-slate-400 px-2 py-0.5 rounded font-normal">v3.0.0</span>
                 </h1>
-                <span class="text-2xs text-slate-500 font-mono tracking-tight">TACTICAL ORBITAL MONITORING NETWORK</span>
+                <span class="text-2xs text-slate-500 font-mono tracking-tight">3D ORBITAL TACTICAL MATRIX MONITORING</span>
             </div>
         </div>
 
@@ -140,7 +140,7 @@
             <!-- Top stats strip inside canvas container -->
             <div class="h-10 border-b border-slate-900 bg-slate-950/60 flex items-center justify-between px-6 text-xs text-slate-400 z-10">
                 <div class="flex items-center gap-3">
-                    <span id="view-title" class="font-bold tracking-widest text-emerald-400 uppercase">SEISMIC MATRIX FEED</span>
+                    <span id="view-title" class="font-bold tracking-widest text-emerald-400 uppercase">3D SEISMIC MATRIX GLOBE</span>
                     <span class="h-1.5 w-1.5 rounded-full bg-slate-800 inline-block"></span>
                     <span class="text-slate-500">REFRESH RATE: 60 FPS</span>
                 </div>
@@ -151,13 +151,17 @@
 
             <!-- Canvas Container -->
             <div class="flex-1 relative overflow-hidden" id="canvas-container">
-                <canvas id="weather-canvas" class="absolute top-0 left-0 w-full h-full block cursor-crosshair"></canvas>
+                <canvas id="weather-canvas" class="absolute top-0 left-0 w-full h-full block cursor-grab active:cursor-grabbing"></canvas>
                 
                 <!-- Context overlay instructions -->
                 <div class="absolute bottom-4 left-4 bg-slate-900/80 backdrop-blur border border-slate-800 rounded px-3 py-2 text-2xs text-slate-400 pointer-events-none flex flex-col gap-1 max-w-xs">
                     <div class="flex items-center gap-2">
-                        <kbd class="bg-slate-950 px-1 border border-slate-700 rounded text-slate-300">Click</kbd>
-                        <span>Simulate event on Canvas</span>
+                        <kbd class="bg-slate-950 px-1 border border-slate-700 rounded text-slate-300">Drag / Swipe</kbd>
+                        <span>Rotate 3D Wireframe Globe</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <kbd class="bg-slate-950 px-1 border border-slate-700 rounded text-slate-300">Click Globe</kbd>
+                        <span>Spawn threat at 3D coordinate</span>
                     </div>
                     <div id="tab-instruction">Adjust sliders to see canvas reaction in real-time.</div>
                 </div>
@@ -172,15 +176,15 @@
             activeTab: 'seismic', // seismic, vortex, hazards
             startTime: Date.now(),
             seismic: {
-                magnitude: 5.5,
-                depth: 120,
+                magnitude: 6.5,
+                depth: 80,
                 tectonic: true,
                 volcanic: false,
                 shallow: true
             },
             vortex: {
-                category: 3,
-                windSpeed: 135,
+                category: 4,
+                windSpeed: 145,
                 historical: true,
                 cone: true,
                 satellite: false
@@ -196,18 +200,38 @@
             }
         };
 
+        // 3D Globe Parameters
+        let rotX = 0.3;          // Globe X-axis tilt
+        let rotY = 0.8;          // Globe Y-axis spin
+        let targetRotX = 0.3;
+        let targetRotY = 0.8;
+        let isDragging = false;
+        let startMouseX = 0;
+        let startMouseY = 0;
+        const R_factor = 0.38;   // Globe radius factor of screen dimensions
+
+        // Master Threat Coordinate Data (lat/lon in radians, intensity 0..1)
+        const threats = [
+            // Seismic events (Japan, West US, Mediterranean)
+            { type: 'seismic', lat: 0.62, lon: 2.42, intensity: 0.85, name: 'TOK-9.0', age: 0, maxAge: 180 },
+            { type: 'seismic', lat: 0.64, lon: -2.12, intensity: 0.70, name: 'SFO-6.8', age: 40, maxAge: 180 },
+            { type: 'seismic', lat: 0.66, lon: 0.22, intensity: 0.55, name: 'MED-5.2', age: 90, maxAge: 180 },
+            
+            // Vortex tracker storms (Atlantic, West Pacific)
+            { type: 'vortex', lat: 0.35, lon: -1.15, intensity: 0.90, name: 'ST-KATE', age: 0, maxAge: 240 },
+            { type: 'vortex', lat: 0.22, lon: 2.15, intensity: 0.75, name: 'TYPH-GEN', age: 80, maxAge: 240 },
+            
+            // Severe hazards (US Midwest, Australia)
+            { type: 'hazard', lat: 0.68, lon: -1.72, intensity: 0.95, alert: 'Red Warning', category: 'Tornado', age: 0, maxAge: 200 },
+            { type: 'hazard', lat: -0.45, lon: 2.35, intensity: 0.80, alert: 'Red Warning', category: 'Wildfire', age: 50, maxAge: 200 },
+            { type: 'hazard', lat: 0.82, lon: -0.15, intensity: 0.50, alert: 'Yellow Advisory', category: 'Flood', age: 100, maxAge: 200 }
+        ];
+
         // Canvas & Context Setup
         let canvas, ctx, animationFrameId;
-        
-        // Dynamic event lists generated on user clicks
-        const userEvents = {
-            seismic: [],  // elements: {x, y, radius, magnitude, maxRadius, alpha}
-            vortex: [],   // elements: {x, y, angle, size, speed}
-            hazards: []   // elements: {x, y, warning, type, timer, maxTimer}
-        };
 
         window.onload = function() {
-            console.log("Initializing Extreme Weather Console Matrix system...");
+            console.log("Initializing Extreme Weather 3D Globe Projection system...");
             
             // Setup canvas
             canvas = document.getElementById('weather-canvas');
@@ -218,17 +242,20 @@
             window.addEventListener('resize', resizeCanvas);
             
             // Mouse track events
-            canvas.addEventListener('mousemove', function(e) {
-                const rect = canvas.getBoundingClientRect();
-                const scaleX = canvas.width / rect.width;
-                const scaleY = canvas.height / rect.height;
-                const x = (e.clientX - rect.left) * scaleX;
-                const y = (e.clientY - rect.top) * scaleY;
-                document.getElementById('coordinates').innerText = `X: ${x.toFixed(0)} Y: ${y.toFixed(0)}`;
-            });
+            canvas.addEventListener('mousemove', handleMouseMove);
 
-            // Click interaction
-            canvas.addEventListener('mousedown', handleCanvasClick);
+            // Drag / Spin mouse listener bindings
+            canvas.addEventListener('mousedown', handleMouseDown);
+            window.addEventListener('mousemove', handleMouseDrag);
+            window.addEventListener('mouseup', handleMouseUp);
+
+            // Touch support for swiping
+            canvas.addEventListener('touchstart', handleTouchStart, { passive: false });
+            canvas.addEventListener('touchmove', handleTouchMove, { passive: false });
+            canvas.addEventListener('touchend', handleTouchEnd);
+            
+            // Click to spawn threat
+            canvas.addEventListener('click', handleCanvasClick);
             
             // Render first tab controls
             switchTab('seismic');
@@ -246,7 +273,6 @@
         function resizeCanvas() {
             const container = document.getElementById('canvas-container');
             const rect = container.getBoundingClientRect();
-            // High DPI support
             const dpr = window.devicePixelRatio || 1;
             canvas.width = rect.width * dpr;
             canvas.height = rect.height * dpr;
@@ -259,29 +285,29 @@
         function switchTab(tabName) {
             state.activeTab = tabName;
             
-            // Define colors matching active matrix themes
+            // Colors matching active matrix themes
             const activeColors = {
                 seismic: {
                     tabClass: 'bg-emerald-950/60 text-emerald-400 border border-emerald-500/30 neon-glow-emerald',
                     text: 'text-emerald-400',
-                    viewTitle: 'SEISMIC MATRIX FEED',
-                    instruction: 'Click on the canvas to trigger localized seismic epicenter pulses.'
+                    viewTitle: '3D SEISMIC MATRIX GLOBE',
+                    instruction: 'Click on the globe sphere to trigger localized 3D seismic epicenters.'
                 },
                 vortex: {
                     tabClass: 'bg-cyan-950/60 text-cyan-400 border border-cyan-500/30 neon-glow-cyan',
                     text: 'text-cyan-400',
-                    viewTitle: 'VORTEX RADAR TRACKER',
-                    instruction: 'Click to add dynamic storm bands and core vortex spirals.'
+                    viewTitle: '3D VORTEX RADAR GLOBE',
+                    instruction: 'Click on the globe to map severe cyclonic vortex vectors.'
                 },
                 hazards: {
                     tabClass: 'bg-rose-950/60 text-rose-400 border border-rose-500/30 neon-glow-rose',
                     text: 'text-rose-400',
-                    viewTitle: 'SEVERE HAZARDS SWEEP',
-                    instruction: 'Click to plant severe hazard indicators (Tornado, Flood, Fire).'
+                    viewTitle: '3D SEVERE HAZARDS GLOBE',
+                    instruction: 'Click on the globe to map localized active hazard alerts.'
                 }
             };
             
-            // Reset all tab styling
+            // Reset tab styling
             ['seismic', 'vortex', 'hazards'].forEach(t => {
                 const el = document.getElementById(`tab-${t}`);
                 el.className = 'flex items-center gap-2 px-4 py-2 text-sm rounded-md font-medium tracking-wide transition-all duration-300 hover:text-slate-200';
@@ -303,7 +329,7 @@
             renderSidebarFilters(tabName);
         }
 
-        // Sidebar rendering depending on tab
+        // Sidebar rendering
         function renderSidebarFilters(tabName) {
             const container = document.getElementById('dynamic-filters');
             let html = '';
@@ -452,408 +478,375 @@
             container.innerHTML = html;
         }
 
-        // Update state and refresh visual aspects
         function updateFilter(category, filterName, value) {
             state[category][filterName] = value;
-            console.log(`Updated configuration: state.${category}.${filterName} =`, value);
         }
 
-        // Click on canvas generates appropriate event overlays
-        function handleCanvasClick(e) {
-            const rect = canvas.getBoundingClientRect();
-            // Convert page coords to dynamic canvas resolution
-            const scaleX = canvas.width / rect.width;
-            const scaleY = canvas.height / rect.height;
-            const x = (e.clientX - rect.left);
-            const y = (e.clientY - rect.top);
+        // --- MOUSE DRAG & TOUCH SWIPE SPIN GLOBE CONTROLS ---
+        function handleMouseDown(e) {
+            isDragging = true;
+            startMouseX = e.clientX;
+            startMouseY = e.clientY;
+            document.body.style.cursor = 'grabbing';
+        }
 
-            if (state.activeTab === 'seismic') {
-                userEvents.seismic.push({
-                    x: x,
-                    y: y,
-                    radius: 0,
-                    magnitude: state.seismic.magnitude,
-                    maxRadius: state.seismic.magnitude * 25,
-                    alpha: 1.0
-                });
-            } else if (state.activeTab === 'vortex') {
-                // Spawn satellite storm center bands
-                userEvents.vortex.push({
-                    x: x,
-                    y: y,
-                    angle: 0,
-                    size: state.vortex.category * 15,
-                    speed: state.vortex.windSpeed / 100
-                });
-            } else if (state.activeTab === 'hazards') {
-                // Random hazard select
-                const threatTypes = [];
-                if (state.hazards.tornadoes) threatTypes.push('Tornado');
-                if (state.hazards.blizzards) threatTypes.push('Blizzard');
-                if (state.hazards.floods) threatTypes.push('Flood');
-                if (state.hazards.wildfires) threatTypes.push('Wildfire');
-                
-                const type = threatTypes.length > 0 ? threatTypes[Math.floor(Math.random() * threatTypes.length)] : 'Hazard';
-                const warning = state.hazards.red ? 'Red Warning' : (state.hazards.orange ? 'Orange Watch' : 'Yellow Advisory');
+        function handleMouseDrag(e) {
+            if (!isDragging) return;
+            const dx = e.clientX - startMouseX;
+            const dy = e.clientY - startMouseY;
+            
+            // Adjust targets based on sensitivity
+            targetRotY += dx * 0.007;
+            targetRotX += dy * 0.007;
 
-                userEvents.hazards.push({
-                    x: x,
-                    y: y,
-                    warning: warning,
-                    type: type,
-                    timer: 0,
-                    maxTimer: 180 // frames (~3 sec)
-                });
+            // Clamp latitude tilt to avoid flipping upside down
+            targetRotX = Math.max(-Math.PI / 2 + 0.01, Math.min(Math.PI / 2 - 0.01, targetRotX));
+
+            startMouseX = e.clientX;
+            startMouseY = e.clientY;
+        }
+
+        function handleMouseUp() {
+            isDragging = false;
+            document.body.style.cursor = 'default';
+        }
+
+        function handleTouchStart(e) {
+            if (e.touches.length === 1) {
+                isDragging = true;
+                startMouseX = e.touches[0].clientX;
+                startMouseY = e.touches[0].clientY;
+                e.preventDefault();
             }
         }
 
-        // Animation Loop Setup
+        function handleTouchMove(e) {
+            if (!isDragging || e.touches.length !== 1) return;
+            const dx = e.touches[0].clientX - startMouseX;
+            const dy = e.touches[0].clientY - startMouseY;
+            targetRotY += dx * 0.007;
+            targetRotX += dy * 0.007;
+            targetRotX = Math.max(-Math.PI / 2 + 0.01, Math.min(Math.PI / 2 - 0.01, targetRotX));
+            startMouseX = e.touches[0].clientX;
+            startMouseY = e.touches[0].clientY;
+            e.preventDefault();
+        }
+
+        function handleTouchEnd() {
+            isDragging = false;
+        }
+
+        function handleMouseMove(e) {
+            const rect = canvas.getBoundingClientRect();
+            const scaleX = canvas.width / rect.width;
+            const scaleY = canvas.height / rect.height;
+            const x = (e.clientX - rect.left) * scaleX;
+            const y = (e.clientY - rect.top) * scaleY;
+            document.getElementById('coordinates').innerText = `X: ${x.toFixed(0)} Y: ${y.toFixed(0)}`;
+        }
+
+        // --- CLICK GLOBE & SPAWN THREAT SYSTEM ---
+        function handleCanvasClick(e) {
+            // Prevent spawning threat if we were dragging
+            if (Math.abs(e.clientX - startMouseX) > 3 || Math.abs(e.clientY - startMouseY) > 3) {
+                return;
+            }
+
+            const rect = canvas.getBoundingClientRect();
+            // Normal coords relative to canvas display
+            const px = e.clientX - rect.left;
+            const py = e.clientY - rect.top;
+
+            const w = rect.width;
+            const h = rect.height;
+            const centerX = w / 2;
+            const centerY = h / 2;
+            const R = Math.min(w, h) * R_factor;
+
+            const dx = px - centerX;
+            const dy = centerY - py; // Flip Y for standard Cartesian
+
+            if (dx*dx + dy*dy <= R*R) {
+                // Click landed inside the sphere! 
+                const zr = Math.sqrt(R*R - dx*dx - dy*dy);
+                const xr = dx;
+                const yr = dy;
+
+                // Reverse X-axis tilt (rotate around X axis by -rotX)
+                const cosTx = Math.cos(-rotX);
+                const sinTx = Math.sin(-rotX);
+                const y1 = yr * cosTx - zr * sinTx;
+                const z1 = yr * sinTx + zr * cosTx;
+                const x1 = xr; // X unaffected by X-axis tilt
+
+                // Reverse Y-axis spin (rotate around Y axis by -rotY)
+                const cosTy = Math.cos(-rotY);
+                const sinTy = Math.sin(-rotY);
+                const x0 = x1 * cosTy - z1 * sinTy;
+                const z0 = x1 * sinTy + z1 * cosTy;
+                const y0 = y1;
+
+                // Convert unrotated 3D vector to lat / lon spherical coordinates
+                const clickedLat = Math.asin(y0 / R);
+                const clickedLon = Math.atan2(x0, z0);
+
+                // Add threat based on active tab
+                if (state.activeTab === 'seismic') {
+                    threats.push({
+                        type: 'seismic',
+                        lat: clickedLat,
+                        lon: clickedLon,
+                        intensity: state.seismic.magnitude / 10.0,
+                        name: `EQ-${state.seismic.magnitude.toFixed(1)}`,
+                        age: 0,
+                        maxAge: 180
+                    });
+                } else if (state.activeTab === 'vortex') {
+                    threats.push({
+                        type: 'vortex',
+                        lat: clickedLat,
+                        lon: clickedLon,
+                        intensity: state.vortex.category / 5.0,
+                        name: `ST-CAT${state.vortex.category}`,
+                        age: 0,
+                        maxAge: 240
+                    });
+                } else if (state.activeTab === 'hazards') {
+                    const threatTypes = [];
+                    if (state.hazards.tornadoes) threatTypes.push('Tornado');
+                    if (state.hazards.blizzards) threatTypes.push('Blizzard');
+                    if (state.hazards.floods) threatTypes.push('Flood');
+                    if (state.hazards.wildfires) threatTypes.push('Wildfire');
+                    
+                    const type = threatTypes.length > 0 ? threatTypes[Math.floor(Math.random() * threatTypes.length)] : 'Hazard';
+                    const alert = state.hazards.red ? 'Red Warning' : (state.hazards.orange ? 'Orange Watch' : 'Yellow Advisory');
+
+                    threats.push({
+                        type: 'hazard',
+                        lat: clickedLat,
+                        lon: clickedLon,
+                        intensity: state.hazards.red ? 0.95 : (state.hazards.orange ? 0.75 : 0.45),
+                        alert: alert,
+                        category: type,
+                        age: 0,
+                        maxAge: 200
+                    });
+                }
+                console.log(`Placed threat at Spherical Lat: ${(clickedLat * 180 / Math.PI).toFixed(1)}°, Lon: ${(clickedLon * 180 / Math.PI).toFixed(1)}°`);
+            }
+        }
+
+        // --- 3D ORTHOGRAPHIC PROJECTION & ANIMATION ENGINE ---
         function startLoop() {
             function loop() {
-                // Draw background grids and layout elements
+                const w = canvas.width / (window.devicePixelRatio || 1);
+                const h = canvas.height / (window.devicePixelRatio || 1);
+
+                // Clear screen
                 ctx.fillStyle = '#030712'; // bg-slate-950
-                ctx.fillRect(0, 0, canvas.width / (window.devicePixelRatio || 1), canvas.height / (window.devicePixelRatio || 1));
+                ctx.fillRect(0, 0, w, h);
 
-                // Draw tactical grids
-                drawTacticalGrid();
-
-                // Draw visualizations based on tabs
-                if (state.activeTab === 'seismic') {
-                    drawSeismicVis();
-                } else if (state.activeTab === 'vortex') {
-                    drawVortexVis();
-                } else if (state.activeTab === 'hazards') {
-                    drawHazardsVis();
+                // Smooth rotation interpolation
+                if (!isDragging) {
+                    targetRotY += 0.0015; // Slow ambient spin
                 }
+                rotX += (targetRotX - rotX) * 0.15;
+                rotY += (targetRotY - rotY) * 0.15;
+
+                // Draw background stars
+                drawBackgroundStars(w, h);
+
+                // Render 3D Globe Elements
+                const R = Math.min(w, h) * R_factor;
+                draw3DGlobe(w / 2, h / 2, R);
+
+                // Render coordinate threat points ripples
+                renderPoints(w / 2, h / 2, R);
 
                 animationFrameId = requestAnimationFrame(loop);
             }
             loop();
         }
 
-        // Background grid matrix lines
-        function drawTacticalGrid() {
-            const w = canvas.width / (window.devicePixelRatio || 1);
-            const h = canvas.height / (window.devicePixelRatio || 1);
-            ctx.strokeStyle = '#0f172a'; // slate-900
-            ctx.lineWidth = 1;
-            
-            const gridSize = 40;
-            // Vertical lines
-            for (let x = 0; x < w; x += gridSize) {
-                ctx.beginPath();
-                ctx.moveTo(x, 0);
-                ctx.lineTo(x, h);
-                ctx.stroke();
-            }
-            // Horizontal lines
-            for (let y = 0; y < h; y += gridSize) {
-                ctx.beginPath();
-                ctx.moveTo(0, y);
-                ctx.lineTo(w, y);
-                ctx.stroke();
-            }
-
-            // Radar sweep/concentric ring lines
-            ctx.strokeStyle = 'rgba(30, 41, 59, 0.4)';
-            ctx.lineWidth = 1.5;
+        function drawBackgroundStars(w, h) {
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.15)';
+            // Draw static mock telemetry background sparks
             ctx.beginPath();
-            ctx.arc(w / 2, h / 2, Math.min(w, h) * 0.35, 0, 2 * Math.PI);
-            ctx.stroke();
-            ctx.beginPath();
-            ctx.arc(w / 2, h / 2, Math.min(w, h) * 0.2, 0, 2 * Math.PI);
-            ctx.stroke();
-        }
-
-        // 1. SEISMIC MATRIX ANIMATION VISUALIZER
-        function drawSeismicVis() {
-            const w = canvas.width / (window.devicePixelRatio || 1);
-            const h = canvas.height / (window.devicePixelRatio || 1);
-
-            // Active sensors simulation dots
-            if (state.seismic.tectonic) {
-                drawActiveSensor(w * 0.25, h * 0.35, 'TECT-A', '#34d399');
-                drawActiveSensor(w * 0.75, h * 0.65, 'TECT-B', '#34d399');
-            }
-            if (state.seismic.volcanic) {
-                drawActiveSensor(w * 0.5, h * 0.25, 'VOLC-ALPHA', '#fb7185');
-            }
-            if (state.seismic.shallow) {
-                drawActiveSensor(w * 0.3, h * 0.75, 'SHAL-09', '#60a5fa');
-            }
-
-            // Animate existing pulses
-            for (let i = userEvents.seismic.length - 1; i >= 0; i--) {
-                const event = userEvents.seismic[i];
-                event.radius += (event.magnitude * 0.5);
-                event.alpha -= 0.012;
-
-                if (event.alpha <= 0 || event.radius >= event.maxRadius) {
-                    userEvents.seismic.splice(i, 1);
-                    continue;
-                }
-
-                // Render concentric rings
-                ctx.strokeStyle = `rgba(52, 211, 153, ${event.alpha})`;
-                ctx.lineWidth = event.magnitude * 0.8;
-                ctx.beginPath();
-                ctx.arc(event.x, event.y, event.radius, 0, 2 * Math.PI);
-                ctx.stroke();
-
-                ctx.strokeStyle = `rgba(16, 185, 129, ${event.alpha * 0.4})`;
-                ctx.lineWidth = 1;
-                ctx.beginPath();
-                ctx.arc(event.x, event.y, event.radius * 0.7, 0, 2 * Math.PI);
-                ctx.stroke();
-
-                // Draw magnitude label at center
-                ctx.fillStyle = `rgba(110, 231, 183, ${event.alpha})`;
-                ctx.font = '9px "JetBrains Mono"';
-                ctx.fillText(`MAG: ${event.magnitude.toFixed(1)} (D:${state.seismic.depth}km)`, event.x + 8, event.y - 8);
-                
-                ctx.fillStyle = `rgba(52, 211, 153, ${event.alpha})`;
-                ctx.beginPath();
-                ctx.arc(event.x, event.y, 3, 0, 2 * Math.PI);
-                ctx.fill();
-            }
-
-            // Passive continuous background vibrations
-            const time = Date.now() * 0.002;
-            ctx.strokeStyle = 'rgba(16, 185, 129, 0.15)';
-            ctx.lineWidth = 1;
-            ctx.beginPath();
-            for (let x = 0; x < w; x += 5) {
-                const yOffset = Math.sin(x * 0.01 + time) * (state.seismic.magnitude * 3);
-                const y = h * 0.5 + yOffset;
-                if (x === 0) ctx.moveTo(x, y);
-                else ctx.lineTo(x, y);
-            }
-            ctx.stroke();
-        }
-
-        function drawActiveSensor(x, y, label, color) {
-            ctx.fillStyle = color;
-            ctx.beginPath();
-            ctx.arc(x, y, 4, 0, 2 * Math.PI);
+            ctx.arc(w * 0.1, h * 0.15, 1, 0, 2 * Math.PI);
+            ctx.arc(w * 0.85, h * 0.2, 0.8, 0, 2 * Math.PI);
+            ctx.arc(w * 0.2, h * 0.8, 1.2, 0, 2 * Math.PI);
+            ctx.arc(w * 0.9, h * 0.75, 1, 0, 2 * Math.PI);
             ctx.fill();
-            
-            ctx.strokeStyle = color;
-            ctx.lineWidth = 0.5;
-            ctx.beginPath();
-            ctx.arc(x, y, 8 + Math.sin(Date.now() * 0.005) * 4, 0, 2 * Math.PI);
-            ctx.stroke();
-
-            ctx.fillStyle = '#64748b'; // slate-500
-            ctx.font = '8px "JetBrains Mono"';
-            ctx.fillText(label, x + 8, y + 3);
         }
 
-        // 2. VORTEX TRACKER (HURRICANES) VISUALIZER
-        let vortexAngle = 0;
-        function drawVortexVis() {
-            const w = canvas.width / (window.devicePixelRatio || 1);
-            const h = canvas.height / (window.devicePixelRatio || 1);
-            const centerX = w / 2;
-            const centerY = h / 2;
+        // Renders minimalist, dark-gray wireframe sphere (front brighter, back darker)
+        function draw3DGlobe(cx, cy, R) {
+            const numLatSegments = 12;
+            const numLonSegments = 16;
+            const numPointsPerRing = 45;
 
-            vortexAngle += (state.vortex.windSpeed * 0.0001);
+            // Define wireframe theme colors
+            const gridColorFront = 'rgba(51, 65, 85, 0.5)';  // slate-700
+            const gridColorBack = 'rgba(30, 41, 59, 0.12)';  // slate-800
 
-            // Draw historical storm tracks
-            if (state.vortex.historical) {
-                ctx.strokeStyle = 'rgba(34, 211, 238, 0.2)';
-                ctx.setLineDash([5, 5]);
-                ctx.lineWidth = 1.5;
+            // 1. Draw Latitudinal Ring Lines (horizontal rings)
+            for (let i = 1; i < numLatSegments; i++) {
+                const lat = -Math.PI / 2 + (Math.PI / numLatSegments) * i;
+                
                 ctx.beginPath();
-                ctx.moveTo(w * 0.1, h * 0.9);
-                ctx.quadraticCurveTo(w * 0.4, h * 0.6, centerX, centerY);
-                ctx.stroke();
-                ctx.setLineDash([]); // Reset line dash
-            }
-
-            // Draw cone of uncertainty
-            if (state.vortex.cone) {
-                ctx.fillStyle = 'rgba(34, 211, 238, 0.04)';
-                ctx.beginPath();
-                ctx.moveTo(centerX, centerY);
-                ctx.lineTo(w * 0.8, h * 0.25);
-                ctx.lineTo(w * 0.9, h * 0.45);
-                ctx.closePath();
-                ctx.fill();
-
-                ctx.strokeStyle = 'rgba(34, 211, 238, 0.15)';
-                ctx.lineWidth = 1;
-                ctx.beginPath();
-                ctx.moveTo(centerX, centerY);
-                ctx.lineTo(w * 0.8, h * 0.25);
-                ctx.moveTo(centerX, centerY);
-                ctx.lineTo(w * 0.9, h * 0.45);
-                ctx.stroke();
-            }
-
-            // Swirling particles in main vortex core
-            const particleCount = 120 + (state.vortex.category * 30);
-            const baseRadius = 40 + (state.vortex.category * 15);
-            
-            ctx.lineWidth = 1.5;
-            for (let i = 0; i < particleCount; i++) {
-                const angle = vortexAngle + (i * (Math.PI * 2 / particleCount));
-                // Spiral formula
-                const distanceFactor = (i % 3) * 40 + baseRadius;
-                const r = distanceFactor - (Math.sin(vortexAngle + i) * 10);
-                const px = centerX + Math.cos(angle) * r;
-                const py = centerY + Math.sin(angle) * r;
-
-                // Color gradients based on satellite view
-                if (state.vortex.satellite) {
-                    // Thermal infrared view: Red/Orange for strong bands, Blue for outer margins
-                    ctx.fillStyle = i % 5 === 0 ? 'rgba(239, 68, 68, 0.6)' : (i % 3 === 0 ? 'rgba(249, 115, 22, 0.5)' : 'rgba(59, 130, 246, 0.4)');
-                } else {
-                    ctx.fillStyle = `rgba(34, 211, 238, ${0.1 + (1 - r / (w * 0.5)) * 0.6})`;
+                let lastPt = null;
+                
+                for (let j = 0; j <= numPointsPerRing; j++) {
+                    const lon = (Math.PI * 2 / numPointsPerRing) * j;
+                    const pt = project3DPoint(lat, lon, R, cx, cy);
+                    
+                    if (j > 0 && lastPt && pt) {
+                        ctx.strokeStyle = pt.z > 0 ? gridColorFront : gridColorBack;
+                        ctx.lineWidth = pt.z > 0 ? 0.75 : 0.4;
+                        ctx.beginPath();
+                        ctx.moveTo(lastPt.x, lastPt.y);
+                        ctx.lineTo(pt.x, pt.y);
+                        ctx.stroke();
+                    }
+                    lastPt = pt;
                 }
-
-                ctx.beginPath();
-                ctx.arc(px, py, 1.5 + (state.vortex.category * 0.4), 0, 2 * Math.PI);
-                ctx.fill();
             }
 
-            // Main storm eye center text
-            ctx.fillStyle = '#22d3ee'; // cyan-400
-            ctx.font = '10px "JetBrains Mono"';
-            ctx.textAlign = 'center';
-            ctx.fillText(`EYE: ST-CAT ${state.vortex.category}`, centerX, centerY - 15);
-            ctx.fillText(`${state.vortex.windSpeed} KTS`, centerX, centerY + 25);
-            ctx.textAlign = 'start'; // reset
+            // 2. Draw Longitudinal Ring Lines (vertical slices)
+            for (let i = 0; i < numLonSegments; i++) {
+                const lon = (Math.PI * 2 / numLonSegments) * i;
+                
+                ctx.beginPath();
+                let lastPt = null;
+                
+                for (let j = 0; j <= numPointsPerRing; j++) {
+                    const lat = -Math.PI / 2 + (Math.PI / numPointsPerRing) * j;
+                    const pt = project3DPoint(lat, lon, R, cx, cy);
+                    
+                    if (j > 0 && lastPt && pt) {
+                        ctx.strokeStyle = pt.z > 0 ? gridColorFront : gridColorBack;
+                        ctx.lineWidth = pt.z > 0 ? 0.75 : 0.4;
+                        ctx.beginPath();
+                        ctx.moveTo(lastPt.x, lastPt.y);
+                        ctx.lineTo(pt.x, pt.y);
+                        ctx.stroke();
+                    }
+                    lastPt = pt;
+                }
+            }
 
-            ctx.strokeStyle = 'rgba(34, 211, 238, 0.8)';
-            ctx.lineWidth = 2;
+            // 3. Draw outer bounding ring silhouette
+            ctx.strokeStyle = '#334155'; // slate-700
+            ctx.lineWidth = 1.5;
             ctx.beginPath();
-            ctx.arc(centerX, centerY, 8, 0, 2 * Math.PI);
+            ctx.arc(cx, cy, R, 0, 2 * Math.PI);
             ctx.stroke();
 
-            // Draw dynamic user-placed storms
-            for (let i = 0; i < userEvents.vortex.length; i++) {
-                const storm = userEvents.vortex[i];
-                storm.angle += storm.speed;
-                
-                ctx.strokeStyle = 'rgba(6, 182, 212, 0.4)';
-                ctx.lineWidth = 1;
-                ctx.beginPath();
-                ctx.arc(storm.x, storm.y, storm.size, 0, 2 * Math.PI);
-                ctx.stroke();
+            // Radar scan overlay sweeping over globe
+            const scanLineAngle = Date.now() * 0.001;
+            ctx.strokeStyle = 'rgba(52, 211, 153, 0.06)';
+            ctx.fillStyle = 'rgba(52, 211, 153, 0.015)';
+            ctx.beginPath();
+            ctx.moveTo(cx, cy);
+            ctx.arc(cx, cy, R, scanLineAngle, scanLineAngle + 0.4);
+            ctx.closePath();
+            ctx.fill();
+            ctx.stroke();
+        }
 
-                // Swirl arm dots
-                for (let j = 0; j < 5; j++) {
-                    const swirlAngle = storm.angle + (j * Math.PI * 0.4);
-                    const sx = storm.x + Math.cos(swirlAngle) * (storm.size * 0.8);
-                    const sy = storm.y + Math.sin(swirlAngle) * (storm.size * 0.8);
-                    ctx.fillStyle = '#22d3ee';
+        // Map spherical coordinate to projected screen coordinates
+        function project3DPoint(lat, lon, R, cx, cy) {
+            // Spherical to 3D Cartesian
+            const x = R * Math.cos(lat) * Math.sin(lon);
+            const y = R * Math.sin(lat);
+            const z = R * Math.cos(lat) * Math.cos(lon);
+
+            // Rotate Y-axis (Spin)
+            const cosY = Math.cos(rotY);
+            const sinY = Math.sin(rotY);
+            const x1 = x * cosY - z * sinY;
+            const z1 = x * sinY + z * cosY;
+
+            // Rotate X-axis (Tilt)
+            const cosX = Math.cos(rotX);
+            const sinX = Math.sin(rotX);
+            const y2 = y * cosX - z1 * sinX;
+            const z2 = y * sinX + z1 * cosX;
+
+            return {
+                x: cx + x1,
+                y: cy - y2, // standard inverted Y axis
+                z: z2       // Depth tracking
+            };
+        }
+
+        // --- GLOBAL THREAT POINT TRACKING & RIPPLE ANIMATION ---
+        function renderPoints(cx, cy, R) {
+            for (let i = 0; i < threats.length; i++) {
+                const threat = threats[i];
+                
+                // Increment life age
+                threat.age = (threat.age + 1) % threat.maxAge;
+                
+                // Project 3D threat point on rotating globe
+                const pt = project3DPoint(threat.lat, threat.lon, R, cx, cy);
+                
+                // Render point only if facing front camera (z > 0)
+                if (pt.z > 0) {
+                    const isActiveType = threat.type === state.activeTab;
+                    const baseAlpha = isActiveType ? 0.95 : 0.25; // Dim inactive tab threats
+                    
+                    // Determine theme accent colors
+                    let color = '244, 63, 94'; // rose (hazard)
+                    if (threat.type === 'seismic') color = '52, 211, 153';  // emerald
+                    if (threat.type === 'vortex') color = '34, 211, 238';   // cyan
+
+                    // Draw solid epicenter pinpoint dot
+                    ctx.fillStyle = `rgba(${color}, ${baseAlpha})`;
                     ctx.beginPath();
-                    ctx.arc(sx, sy, 2, 0, 2 * Math.PI);
+                    ctx.arc(pt.x, pt.y, isActiveType ? 4.5 : 2.5, 0, 2 * Math.PI);
                     ctx.fill();
+
+                    // Expanding concentric ripples calculation
+                    const intensity = threat.intensity; // scale factor
+                    const ringCount = 3;
+                    
+                    for (let r = 0; r < ringCount; r++) {
+                        // Offset ring startup ages
+                        const ringAge = (threat.age + (r * (threat.maxAge / ringCount))) % threat.maxAge;
+                        const progress = ringAge / threat.maxAge;
+                        
+                        const radius = progress * (45 * intensity);
+                        const alpha = (1 - progress) * baseAlpha;
+
+                        ctx.strokeStyle = `rgba(${color}, ${alpha})`;
+                        ctx.lineWidth = isActiveType ? (2 * (1 - progress)) : 0.75;
+                        ctx.beginPath();
+                        ctx.arc(pt.x, pt.y, radius, 0, 2 * Math.PI);
+                        ctx.stroke();
+                    }
+
+                    // Render labeling metadata
+                    if (isActiveType) {
+                        ctx.fillStyle = `rgba(${color}, 0.85)`;
+                        ctx.font = '8px "JetBrains Mono"';
+                        
+                        if (threat.type === 'seismic') {
+                            ctx.fillText(threat.name, pt.x + 8, pt.y - 4);
+                            ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
+                            ctx.fillText(`D: ${state.seismic.depth}km`, pt.x + 8, pt.y + 6);
+                        } else if (threat.type === 'vortex') {
+                            ctx.fillText(`${threat.name}`, pt.x + 8, pt.y - 4);
+                            ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
+                            ctx.fillText(`${state.vortex.windSpeed}KT`, pt.x + 8, pt.y + 6);
+                        } else if (threat.type === 'hazard') {
+                            ctx.fillText(threat.category.toUpperCase(), pt.x + 8, pt.y - 4);
+                            ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
+                            ctx.fillText(threat.alert.toUpperCase(), pt.x + 8, pt.y + 6);
+                        }
+                    }
                 }
             }
-        }
-
-        // 3. SEVERE HAZARDS TRACKER VISUALIZER
-        let radarAngle = 0;
-        function drawHazardsVis() {
-            const w = canvas.width / (window.devicePixelRatio || 1);
-            const h = canvas.height / (window.devicePixelRatio || 1);
-            const centerX = w / 2;
-            const centerY = h / 2;
-
-            // Increment radar sweep line angle
-            radarAngle += 0.015;
-
-            // Draw rotating radar beam sweep
-            const maxRadius = Math.min(w, h) * 0.45;
-            const beamX = centerX + Math.cos(radarAngle) * maxRadius;
-            const beamY = centerY + Math.sin(radarAngle) * maxRadius;
-
-            // Draw sweep gradient beam
-            ctx.strokeStyle = 'rgba(244, 63, 94, 0.15)'; // rose-500
-            ctx.lineWidth = 3;
-            ctx.beginPath();
-            ctx.moveTo(centerX, centerY);
-            ctx.lineTo(beamX, beamY);
-            ctx.stroke();
-
-            // Draw hazard indicator flags
-            drawHazardMarker(w * 0.35, h * 0.25, 'Tornado', 'Red Warning', state.hazards.tornadoes && state.hazards.red);
-            drawHazardMarker(w * 0.7, h * 0.3, 'Flood', 'Orange Watch', state.hazards.floods && state.hazards.orange);
-            drawHazardMarker(w * 0.25, h * 0.65, 'Wildfire', 'Red Warning', state.hazards.wildfires && state.hazards.red);
-            drawHazardMarker(w * 0.55, h * 0.75, 'Blizzard', 'Yellow Advisory', state.hazards.blizzards && state.hazards.yellow);
-
-            // Animate user placed markers
-            for (let i = userEvents.hazards.length - 1; i >= 0; i--) {
-                const event = userEvents.hazards[i];
-                event.timer++;
-                
-                if (event.timer >= event.maxTimer) {
-                    userEvents.hazards.splice(i, 1);
-                    continue;
-                }
-
-                const opacity = 1 - (event.timer / event.maxTimer);
-                
-                // Pulsing dot
-                ctx.fillStyle = `rgba(244, 63, 94, ${opacity})`;
-                ctx.beginPath();
-                ctx.arc(event.x, event.y, 5, 0, 2 * Math.PI);
-                ctx.fill();
-
-                ctx.strokeStyle = `rgba(244, 63, 94, ${opacity * 0.5})`;
-                ctx.lineWidth = 1.5;
-                ctx.beginPath();
-                ctx.arc(event.x, event.y, 8 + (event.timer % 20) * 0.8, 0, 2 * Math.PI);
-                ctx.stroke();
-
-                // Draw labels
-                ctx.fillStyle = `rgba(244, 63, 94, ${opacity})`;
-                ctx.font = '8px "JetBrains Mono"';
-                ctx.fillText(`LOCAL ${event.type.toUpperCase()}`, event.x + 8, event.y - 8);
-                ctx.fillStyle = `rgba(255, 255, 255, ${opacity * 0.7})`;
-                ctx.fillText(`${event.warning.toUpperCase()}`, event.x + 8, event.y + 3);
-            }
-        }
-
-        function drawHazardMarker(x, y, type, alertLevel, isVisible) {
-            if (!isVisible) return;
-            
-            // Pulse opacity
-            const pulse = (Math.sin(Date.now() * 0.004) + 1) / 2;
-            let markerColor = '#f43f5e'; // default rose (red warning)
-            if (alertLevel === 'Orange Watch') markerColor = '#fb923c'; // orange
-            if (alertLevel === 'Yellow Advisory') markerColor = '#facc15'; // yellow
-
-            // Dot
-            ctx.fillStyle = markerColor;
-            ctx.beginPath();
-            ctx.arc(x, y, 4, 0, 2 * Math.PI);
-            ctx.fill();
-
-            // Glow outer ring
-            ctx.strokeStyle = markerColor;
-            ctx.lineWidth = 1;
-            ctx.beginPath();
-            ctx.arc(x, y, 6 + (pulse * 6), 0, 2 * Math.PI);
-            ctx.stroke();
-
-            // Flag label lines
-            ctx.strokeStyle = 'rgba(100, 116, 139, 0.4)'; // slate-500
-            ctx.lineWidth = 1;
-            ctx.beginPath();
-            ctx.moveTo(x, y);
-            ctx.lineTo(x + 12, y - 12);
-            ctx.lineTo(x + 65, y - 12);
-            ctx.stroke();
-
-            // Text info
-            ctx.fillStyle = '#e2e8f0'; // slate-200
-            ctx.font = '7px "JetBrains Mono"';
-            ctx.fillText(`${type.toUpperCase()}`, x + 16, y - 18);
-            ctx.fillStyle = markerColor;
-            ctx.fillText(alertLevel.toUpperCase(), x + 16, y - 5);
         }
 
         // Timer utilities
@@ -865,9 +858,9 @@
             document.getElementById('uptime-counter').innerText = `${hours}:${mins}:${secs}`;
         }
 
-        // Simulates realistic bandwidth/telemetry fluctuations
+        // Fluctuations simulation
         function simulateTelemetryRate() {
-            const val = (40 + Math.random() * 12).toFixed(1);
+            const val = (42 + Math.random() * 10).toFixed(1);
             document.getElementById('data-rate').innerText = `${val} MB/s`;
         }
     </script>
