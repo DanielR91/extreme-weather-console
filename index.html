@@ -421,7 +421,7 @@
                     });
 
                     // Inject volcanic tremors if USGS payload contains none
-                    const volcanicCount = threats.filter(t => t.type === 'seismic' && t.subtype === 'volcanic').length;
+                    const volcanicCount = threats.filter(t => t.type === 'seismic' && (t.subtype === 'volcanic' || (t.subtype && t.subtype.includes('volcanic')))).length;
                     if (volcanicCount === 0) {
                         injectVolcanicTremors();
                     }
@@ -1112,9 +1112,13 @@
                     const sState = state.seismic.shallow;
                     const anySensoryChecked = tState || vState || sState;
                     if (anySensoryChecked) {
-                        if (threat.subtype === 'tectonic' && !tState) continue;
-                        if (threat.subtype === 'volcanic' && !vState) continue;
-                        if (threat.subtype === 'shallow' && !sState) continue;
+                        const isTectonic = threat.subtype === 'tectonic';
+                        const isVolcanic = threat.subtype === 'volcanic' || threat.type === 'volcanic' || (threat.subtype && threat.subtype.includes('volcanic'));
+                        const isShallow = threat.subtype === 'shallow';
+
+                        if (isTectonic && !tState) continue;
+                        if (isVolcanic && !vState) continue;
+                        if (isShallow && !sState) continue;
                     }
                 }
                 
