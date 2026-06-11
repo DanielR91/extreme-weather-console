@@ -183,10 +183,10 @@
             activeTab: 'seismic', // seismic, vortex, hazards
             startTime: Date.now(),
             seismic: {
-                magnitude: 4.5,
-                depth: 80,
+                magnitude: 2.0,
+                depth: 700,
                 tectonic: true,
-                volcanic: false,
+                volcanic: true,
                 shallow: true
             },
             vortex: {
@@ -221,7 +221,7 @@
         let worldFeatures = [];
 
         // Seismic filters global state tracking variables
-        let minMagnitude = 4.5;
+        let minMagnitude = 2.0;
         let maxDepth = 700;
         let filterTsunami = false;
 
