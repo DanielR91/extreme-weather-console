@@ -708,7 +708,7 @@
                         // Push dynamic threat structures
                         const latRad = lat * Math.PI / 180;
                         const lonRad = lon * Math.PI / 180;
-                        const eventName = props.event || 'Severe Warning';
+                        const eventName = props.event || props.headline || "Severe Hazard";
                         const severity = props.severity || 'Minor';
                         const headline = props.headline || 'Meteorological Hazard Alert';
 
@@ -1337,6 +1337,12 @@
                     ctx.arc(pt.x, pt.y, dotRadius, 0, 2 * Math.PI);
                     ctx.fill();
 
+                    if (threat.type === 'hazard' && isActiveType) {
+                        ctx.fillStyle = '#ffffff';
+                        ctx.font = '10px monospace';
+                        ctx.fillText(threat.name, pt.x + 8, pt.y + 3);
+                    }
+
                     // Expanding concentric ripples calculation
                     const intensity = threat.intensity;
                     const ringCount = 3;
@@ -1413,10 +1419,6 @@
                                 }
                                 ctx.setLineDash([]);
                             }
-                        } else if (threat.type === 'hazard') {
-                            ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
-                            ctx.font = '10px monospace';
-                            ctx.fillText(threat.name, pt.x + 8, pt.y + 3);
                         }
                     }
                 }
