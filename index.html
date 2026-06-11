@@ -1,0 +1,875 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full bg-slate-950 text-slate-100">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Extreme Weather Console & Matrix System</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        mono: ['JetBrains Mono', 'Fira Code', 'monospace'],
+                    },
+                    colors: {
+                        slate: {
+                            950: '#030712',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,100..800;1,100..800&family=Outfit:wght@100..900&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Outfit', sans-serif;
+        }
+        .font-mono-custom {
+            font-family: 'JetBrains Mono', monospace;
+        }
+        /* Neon glow utilities */
+        .neon-glow-emerald {
+            box-shadow: 0 0 15px rgba(52, 211, 153, 0.2), inset 0 0 15px rgba(52, 211, 153, 0.1);
+        }
+        .neon-glow-cyan {
+            box-shadow: 0 0 15px rgba(34, 211, 238, 0.2), inset 0 0 15px rgba(34, 211, 238, 0.1);
+        }
+        .neon-glow-rose {
+            box-shadow: 0 0 15px rgba(251, 113, 133, 0.2), inset 0 0 15px rgba(251, 113, 133, 0.1);
+        }
+        /* Custom scrollbars */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #090d16;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #1e293b;
+            border-radius: 3px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #334155;
+        }
+    </style>
+</head>
+<body class="h-full flex flex-col overflow-hidden select-none font-mono-custom bg-slate-950 text-slate-100">
+
+    <!-- STICKY HEADER / NAVIGATION PANEL -->
+    <header class="sticky top-0 z-50 flex flex-col md:flex-row items-center justify-between px-6 py-4 bg-slate-900/90 border-b border-slate-800 backdrop-blur-md">
+        <div class="flex items-center gap-3 mb-4 md:mb-0">
+            <!-- Neon blinking beacon indicator -->
+            <span class="relative flex h-3.5 w-3.5">
+                <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span class="relative inline-flex rounded-full h-3.5 w-3.5 bg-emerald-500"></span>
+            </span>
+            <div class="flex flex-col">
+                <h1 class="text-lg font-bold tracking-widest text-emerald-400 uppercase flex items-center gap-2">
+                    EXTREME WEATHER CONSOLE <span class="text-xs bg-slate-800 text-slate-400 px-2 py-0.5 rounded font-normal">v2.4.0</span>
+                </h1>
+                <span class="text-2xs text-slate-500 font-mono tracking-tight">TACTICAL ORBITAL MONITORING NETWORK</span>
+            </div>
+        </div>
+
+        <!-- Interactive Tabs Navigation -->
+        <nav class="flex gap-1 bg-slate-950 p-1 rounded-lg border border-slate-800/80">
+            <button id="tab-seismic" onclick="switchTab('seismic')" class="flex items-center gap-2 px-4 py-2 text-sm rounded-md font-medium tracking-wide transition-all duration-300 hover:text-emerald-400">
+                <svg class="w-4 h-4 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+                </svg>
+                Seismic Matrix
+            </button>
+            <button id="tab-vortex" onclick="switchTab('vortex')" class="flex items-center gap-2 px-4 py-2 text-sm rounded-md font-medium tracking-wide transition-all duration-300 hover:text-cyan-400">
+                <svg class="w-4 h-4 text-cyan-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 5.636l-3.536 3.536m0 5.656l3.536 3.536M9.172 9.172L5.636 5.636m3.536 9.192l-3.536 3.536M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-5 0a4 4 0 11-8 0 4 4 0 018 0z"></path>
+                </svg>
+                Vortex Tracker
+            </button>
+            <button id="tab-hazards" onclick="switchTab('hazards')" class="flex items-center gap-2 px-4 py-2 text-sm rounded-md font-medium tracking-wide transition-all duration-300 hover:text-rose-400">
+                <svg class="w-4 h-4 text-rose-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+                </svg>
+                Severe Hazards
+            </button>
+        </nav>
+    </header>
+
+    <!-- MAIN BODY SECTION: SPLIT SCREEN -->
+    <main class="flex-1 flex overflow-hidden">
+        <!-- LEFT SIDEBAR: FILTERS AND CONTROLS -->
+        <aside class="w-80 border-r border-slate-800 bg-slate-900/40 flex flex-col justify-between overflow-y-auto">
+            <!-- Inner container for dynamic filters -->
+            <div class="p-6 space-y-6 flex-1">
+                <div class="border-b border-slate-800 pb-4">
+                    <h2 class="text-xs font-bold text-slate-400 tracking-widest uppercase">System Parameter Tuning</h2>
+                    <p class="text-xs text-slate-500 mt-1">Select filters to refine live telemetry feeds</p>
+                </div>
+                
+                <!-- Dynamic Filters Container -->
+                <div id="dynamic-filters" class="space-y-6">
+                    <!-- Loaded dynamically via JavaScript -->
+                </div>
+            </div>
+
+            <!-- Sidebar Footer Status Panel -->
+            <div class="p-6 bg-slate-950 border-t border-slate-900 text-xs font-mono text-slate-500 space-y-2">
+                <div class="flex justify-between">
+                    <span>SECTOR STATUS:</span>
+                    <span class="text-emerald-400 font-bold">NOMINAL</span>
+                </div>
+                <div class="flex justify-between">
+                    <span>UPTIME:</span>
+                    <span id="uptime-counter">00:00:00</span>
+                </div>
+                <div class="flex justify-between">
+                    <span>DATA RATE:</span>
+                    <span id="data-rate">45.2 MB/s</span>
+                </div>
+            </div>
+        </aside>
+
+        <!-- RIGHT VIEWPANE: MASSIVE CANVAS CONTAINER -->
+        <section class="flex-1 flex flex-col bg-slate-950 relative">
+            <!-- Top stats strip inside canvas container -->
+            <div class="h-10 border-b border-slate-900 bg-slate-950/60 flex items-center justify-between px-6 text-xs text-slate-400 z-10">
+                <div class="flex items-center gap-3">
+                    <span id="view-title" class="font-bold tracking-widest text-emerald-400 uppercase">SEISMIC MATRIX FEED</span>
+                    <span class="h-1.5 w-1.5 rounded-full bg-slate-800 inline-block"></span>
+                    <span class="text-slate-500">REFRESH RATE: 60 FPS</span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <span class="text-2xs bg-slate-900 px-2 py-0.5 rounded text-slate-500 border border-slate-800 font-mono" id="coordinates">X: 0.000 Y: 0.000</span>
+                </div>
+            </div>
+
+            <!-- Canvas Container -->
+            <div class="flex-1 relative overflow-hidden" id="canvas-container">
+                <canvas id="weather-canvas" class="absolute top-0 left-0 w-full h-full block cursor-crosshair"></canvas>
+                
+                <!-- Context overlay instructions -->
+                <div class="absolute bottom-4 left-4 bg-slate-900/80 backdrop-blur border border-slate-800 rounded px-3 py-2 text-2xs text-slate-400 pointer-events-none flex flex-col gap-1 max-w-xs">
+                    <div class="flex items-center gap-2">
+                        <kbd class="bg-slate-950 px-1 border border-slate-700 rounded text-slate-300">Click</kbd>
+                        <span>Simulate event on Canvas</span>
+                    </div>
+                    <div id="tab-instruction">Adjust sliders to see canvas reaction in real-time.</div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- CORE JAVASCRIPT STATE & LIFECYCLE MANAGEMENT -->
+    <script>
+        // Global Application State
+        const state = {
+            activeTab: 'seismic', // seismic, vortex, hazards
+            startTime: Date.now(),
+            seismic: {
+                magnitude: 5.5,
+                depth: 120,
+                tectonic: true,
+                volcanic: false,
+                shallow: true
+            },
+            vortex: {
+                category: 3,
+                windSpeed: 135,
+                historical: true,
+                cone: true,
+                satellite: false
+            },
+            hazards: {
+                red: true,
+                orange: true,
+                yellow: false,
+                tornadoes: true,
+                blizzards: false,
+                floods: true,
+                wildfires: true
+            }
+        };
+
+        // Canvas & Context Setup
+        let canvas, ctx, animationFrameId;
+        
+        // Dynamic event lists generated on user clicks
+        const userEvents = {
+            seismic: [],  // elements: {x, y, radius, magnitude, maxRadius, alpha}
+            vortex: [],   // elements: {x, y, angle, size, speed}
+            hazards: []   // elements: {x, y, warning, type, timer, maxTimer}
+        };
+
+        window.onload = function() {
+            console.log("Initializing Extreme Weather Console Matrix system...");
+            
+            // Setup canvas
+            canvas = document.getElementById('weather-canvas');
+            ctx = canvas.getContext('2d');
+            
+            // Initial resize
+            resizeCanvas();
+            window.addEventListener('resize', resizeCanvas);
+            
+            // Mouse track events
+            canvas.addEventListener('mousemove', function(e) {
+                const rect = canvas.getBoundingClientRect();
+                const scaleX = canvas.width / rect.width;
+                const scaleY = canvas.height / rect.height;
+                const x = (e.clientX - rect.left) * scaleX;
+                const y = (e.clientY - rect.top) * scaleY;
+                document.getElementById('coordinates').innerText = `X: ${x.toFixed(0)} Y: ${y.toFixed(0)}`;
+            });
+
+            // Click interaction
+            canvas.addEventListener('mousedown', handleCanvasClick);
+            
+            // Render first tab controls
+            switchTab('seismic');
+            
+            // Start main visualization loop
+            startLoop();
+            
+            // Start Uptime Timer
+            setInterval(updateUptime, 1000);
+            
+            // Start variable data rate fluctuation simulation
+            setInterval(simulateTelemetryRate, 3000);
+        };
+
+        function resizeCanvas() {
+            const container = document.getElementById('canvas-container');
+            const rect = container.getBoundingClientRect();
+            // High DPI support
+            const dpr = window.devicePixelRatio || 1;
+            canvas.width = rect.width * dpr;
+            canvas.height = rect.height * dpr;
+            ctx.scale(dpr, dpr);
+            canvas.style.width = `${rect.width}px`;
+            canvas.style.height = `${rect.height}px`;
+        }
+
+        // Tab Switching Logic
+        function switchTab(tabName) {
+            state.activeTab = tabName;
+            
+            // Define colors matching active matrix themes
+            const activeColors = {
+                seismic: {
+                    tabClass: 'bg-emerald-950/60 text-emerald-400 border border-emerald-500/30 neon-glow-emerald',
+                    text: 'text-emerald-400',
+                    viewTitle: 'SEISMIC MATRIX FEED',
+                    instruction: 'Click on the canvas to trigger localized seismic epicenter pulses.'
+                },
+                vortex: {
+                    tabClass: 'bg-cyan-950/60 text-cyan-400 border border-cyan-500/30 neon-glow-cyan',
+                    text: 'text-cyan-400',
+                    viewTitle: 'VORTEX RADAR TRACKER',
+                    instruction: 'Click to add dynamic storm bands and core vortex spirals.'
+                },
+                hazards: {
+                    tabClass: 'bg-rose-950/60 text-rose-400 border border-rose-500/30 neon-glow-rose',
+                    text: 'text-rose-400',
+                    viewTitle: 'SEVERE HAZARDS SWEEP',
+                    instruction: 'Click to plant severe hazard indicators (Tornado, Flood, Fire).'
+                }
+            };
+            
+            // Reset all tab styling
+            ['seismic', 'vortex', 'hazards'].forEach(t => {
+                const el = document.getElementById(`tab-${t}`);
+                el.className = 'flex items-center gap-2 px-4 py-2 text-sm rounded-md font-medium tracking-wide transition-all duration-300 hover:text-slate-200';
+            });
+            
+            // Apply active tab styling
+            const config = activeColors[tabName];
+            const activeTabButton = document.getElementById(`tab-${tabName}`);
+            activeTabButton.className = `flex items-center gap-2 px-4 py-2 text-sm rounded-md font-medium tracking-wide transition-all duration-300 ${config.tabClass}`;
+            
+            // Update Headers
+            const viewTitleEl = document.getElementById('view-title');
+            viewTitleEl.innerText = config.viewTitle;
+            viewTitleEl.className = `font-bold tracking-widest ${config.text} uppercase`;
+            
+            document.getElementById('tab-instruction').innerText = config.instruction;
+
+            // Redraw sidebar controllers
+            renderSidebarFilters(tabName);
+        }
+
+        // Sidebar rendering depending on tab
+        function renderSidebarFilters(tabName) {
+            const container = document.getElementById('dynamic-filters');
+            let html = '';
+            
+            if (tabName === 'seismic') {
+                html = `
+                    <div class="space-y-4">
+                        <label class="block text-xs font-bold uppercase tracking-wider text-emerald-400">Trigger Threshold (Mag)</label>
+                        <div class="flex items-center gap-4">
+                            <input type="range" min="1.0" max="10.0" step="0.1" value="${state.seismic.magnitude}" 
+                                class="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-emerald-400"
+                                oninput="updateFilter('seismic', 'magnitude', parseFloat(this.value)); document.getElementById('mag-val').innerText = this.value">
+                            <span class="text-sm font-mono text-emerald-400 min-w-[32px] text-right" id="mag-val">${state.seismic.magnitude.toFixed(1)}</span>
+                        </div>
+                    </div>
+
+                    <div class="space-y-4">
+                        <label class="block text-xs font-bold uppercase tracking-wider text-emerald-400">Hypocentral Depth (km)</label>
+                        <div class="flex items-center gap-4">
+                            <input type="range" min="0" max="700" step="10" value="${state.seismic.depth}" 
+                                class="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-emerald-400"
+                                oninput="updateFilter('seismic', 'depth', parseInt(this.value)); document.getElementById('depth-val').innerText = this.value + 'km'">
+                            <span class="text-sm font-mono text-emerald-400 min-w-[50px] text-right" id="depth-val">${state.seismic.depth}km</span>
+                        </div>
+                    </div>
+
+                    <div class="space-y-3 pt-2">
+                        <label class="block text-xs font-bold uppercase tracking-wider text-slate-400">Sensory Matrix Feed</label>
+                        <label class="flex items-center gap-3 cursor-pointer group">
+                            <input type="checkbox" ${state.seismic.tectonic ? 'checked' : ''} 
+                                class="w-4 h-4 bg-slate-900 border-slate-700 rounded text-emerald-500 focus:ring-0 cursor-pointer accent-emerald-400"
+                                onchange="updateFilter('seismic', 'tectonic', this.checked)">
+                            <span class="text-xs text-slate-300 group-hover:text-emerald-400 transition-colors">Tectonic Drift Array</span>
+                        </label>
+                        <label class="flex items-center gap-3 cursor-pointer group">
+                            <input type="checkbox" ${state.seismic.volcanic ? 'checked' : ''} 
+                                class="w-4 h-4 bg-slate-900 border-slate-700 rounded text-emerald-500 focus:ring-0 cursor-pointer accent-emerald-400"
+                                onchange="updateFilter('seismic', 'volcanic', this.checked)">
+                            <span class="text-xs text-slate-300 group-hover:text-emerald-400 transition-colors">Volcanic Tremor Sensors</span>
+                        </label>
+                        <label class="flex items-center gap-3 cursor-pointer group">
+                            <input type="checkbox" ${state.seismic.shallow ? 'checked' : ''} 
+                                class="w-4 h-4 bg-slate-900 border-slate-700 rounded text-emerald-500 focus:ring-0 cursor-pointer accent-emerald-400"
+                                onchange="updateFilter('seismic', 'shallow', this.checked)">
+                            <span class="text-xs text-slate-300 group-hover:text-emerald-400 transition-colors">Shallow Quake Monitor</span>
+                        </label>
+                    </div>
+                `;
+            } else if (tabName === 'vortex') {
+                html = `
+                    <div class="space-y-4">
+                        <label class="block text-xs font-bold uppercase tracking-wider text-cyan-400">Vortex Category</label>
+                        <div class="flex items-center gap-4">
+                            <input type="range" min="1" max="5" step="1" value="${state.vortex.category}" 
+                                class="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-cyan-400"
+                                oninput="updateFilter('vortex', 'category', parseInt(this.value)); document.getElementById('cat-val').innerText = 'CAT ' + this.value">
+                            <span class="text-sm font-mono text-cyan-400 min-w-[50px] text-right" id="cat-val">CAT ${state.vortex.category}</span>
+                        </div>
+                    </div>
+
+                    <div class="space-y-4">
+                        <label class="block text-xs font-bold uppercase tracking-wider text-cyan-400">Wind Velocity (knots)</label>
+                        <div class="flex items-center gap-4">
+                            <input type="range" min="64" max="180" step="1" value="${state.vortex.windSpeed}" 
+                                class="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-cyan-400"
+                                oninput="updateFilter('vortex', 'windSpeed', parseInt(this.value)); document.getElementById('wind-val').innerText = this.value + 'kt'">
+                            <span class="text-sm font-mono text-cyan-400 min-w-[50px] text-right" id="wind-val">${state.vortex.windSpeed}kt</span>
+                        </div>
+                    </div>
+
+                    <div class="space-y-3 pt-2">
+                        <label class="block text-xs font-bold uppercase tracking-wider text-slate-400">Predictive Overlays</label>
+                        <label class="flex items-center gap-3 cursor-pointer group">
+                            <input type="checkbox" ${state.vortex.historical ? 'checked' : ''} 
+                                class="w-4 h-4 bg-slate-900 border-slate-700 rounded text-cyan-500 focus:ring-0 cursor-pointer accent-cyan-400"
+                                onchange="updateFilter('vortex', 'historical', this.checked)">
+                            <span class="text-xs text-slate-300 group-hover:text-cyan-400 transition-colors">Historical Track</span>
+                        </label>
+                        <label class="flex items-center gap-3 cursor-pointer group">
+                            <input type="checkbox" ${state.vortex.cone ? 'checked' : ''} 
+                                class="w-4 h-4 bg-slate-900 border-slate-700 rounded text-cyan-500 focus:ring-0 cursor-pointer accent-cyan-400"
+                                onchange="updateFilter('vortex', 'cone', this.checked)">
+                            <span class="text-xs text-slate-300 group-hover:text-cyan-400 transition-colors">Cone of Uncertainty</span>
+                        </label>
+                        <label class="flex items-center gap-3 cursor-pointer group">
+                            <input type="checkbox" ${state.vortex.satellite ? 'checked' : ''} 
+                                class="w-4 h-4 bg-slate-900 border-slate-700 rounded text-cyan-500 focus:ring-0 cursor-pointer accent-cyan-400"
+                                onchange="updateFilter('vortex', 'satellite', this.checked)">
+                            <span class="text-xs text-slate-300 group-hover:text-cyan-400 transition-colors">Infrared Sat Overlay</span>
+                        </label>
+                    </div>
+                `;
+            } else if (tabName === 'hazards') {
+                html = `
+                    <div class="space-y-3">
+                        <label class="block text-xs font-bold uppercase tracking-wider text-rose-400">Alert Severity Watch</label>
+                        <label class="flex items-center gap-3 cursor-pointer group">
+                            <input type="checkbox" ${state.hazards.red ? 'checked' : ''} 
+                                class="w-4 h-4 bg-slate-900 border-slate-700 rounded text-rose-500 focus:ring-0 cursor-pointer accent-rose-400"
+                                onchange="updateFilter('hazards', 'red', this.checked)">
+                            <span class="text-xs text-slate-300 group-hover:text-rose-400 transition-colors">Red Warning (Extreme)</span>
+                        </label>
+                        <label class="flex items-center gap-3 cursor-pointer group">
+                            <input type="checkbox" ${state.hazards.orange ? 'checked' : ''} 
+                                class="w-4 h-4 bg-slate-900 border-slate-700 rounded text-rose-500 focus:ring-0 cursor-pointer accent-rose-400"
+                                onchange="updateFilter('hazards', 'orange', this.checked)">
+                            <span class="text-xs text-slate-300 group-hover:text-rose-400 transition-colors">Orange Watch (Severe)</span>
+                        </label>
+                        <label class="flex items-center gap-3 cursor-pointer group">
+                            <input type="checkbox" ${state.hazards.yellow ? 'checked' : ''} 
+                                class="w-4 h-4 bg-slate-900 border-slate-700 rounded text-rose-500 focus:ring-0 cursor-pointer accent-rose-400"
+                                onchange="updateFilter('hazards', 'yellow', this.checked)">
+                            <span class="text-xs text-slate-300 group-hover:text-rose-400 transition-colors">Yellow Advisory (Mild)</span>
+                        </label>
+                    </div>
+
+                    <div class="space-y-3 pt-2">
+                        <label class="block text-xs font-bold uppercase tracking-wider text-slate-400">Active Threat Profiles</label>
+                        <label class="flex items-center gap-3 cursor-pointer group">
+                            <input type="checkbox" ${state.hazards.tornadoes ? 'checked' : ''} 
+                                class="w-4 h-4 bg-slate-900 border-slate-700 rounded text-rose-500 focus:ring-0 cursor-pointer accent-rose-400"
+                                onchange="updateFilter('hazards', 'tornadoes', this.checked)">
+                            <span class="text-xs text-slate-300 group-hover:text-rose-400 transition-colors">Tornado Funnels</span>
+                        </label>
+                        <label class="flex items-center gap-3 cursor-pointer group">
+                            <input type="checkbox" ${state.hazards.blizzards ? 'checked' : ''} 
+                                class="w-4 h-4 bg-slate-900 border-slate-700 rounded text-rose-500 focus:ring-0 cursor-pointer accent-rose-400"
+                                onchange="updateFilter('hazards', 'blizzards', this.checked)">
+                            <span class="text-xs text-slate-300 group-hover:text-rose-400 transition-colors">Severe Blizzards</span>
+                        </label>
+                        <label class="flex items-center gap-3 cursor-pointer group">
+                            <input type="checkbox" ${state.hazards.floods ? 'checked' : ''} 
+                                class="w-4 h-4 bg-slate-900 border-slate-700 rounded text-rose-500 focus:ring-0 cursor-pointer accent-rose-400"
+                                onchange="updateFilter('hazards', 'floods', this.checked)">
+                            <span class="text-xs text-slate-300 group-hover:text-rose-400 transition-colors">Flash Flooding</span>
+                        </label>
+                        <label class="flex items-center gap-3 cursor-pointer group">
+                            <input type="checkbox" ${state.hazards.wildfires ? 'checked' : ''} 
+                                class="w-4 h-4 bg-slate-900 border-slate-700 rounded text-rose-500 focus:ring-0 cursor-pointer accent-rose-400"
+                                onchange="updateFilter('hazards', 'wildfires', this.checked)">
+                            <span class="text-xs text-slate-300 group-hover:text-rose-400 transition-colors">Active Wildfires</span>
+                        </label>
+                    </div>
+                `;
+            }
+            container.innerHTML = html;
+        }
+
+        // Update state and refresh visual aspects
+        function updateFilter(category, filterName, value) {
+            state[category][filterName] = value;
+            console.log(`Updated configuration: state.${category}.${filterName} =`, value);
+        }
+
+        // Click on canvas generates appropriate event overlays
+        function handleCanvasClick(e) {
+            const rect = canvas.getBoundingClientRect();
+            // Convert page coords to dynamic canvas resolution
+            const scaleX = canvas.width / rect.width;
+            const scaleY = canvas.height / rect.height;
+            const x = (e.clientX - rect.left);
+            const y = (e.clientY - rect.top);
+
+            if (state.activeTab === 'seismic') {
+                userEvents.seismic.push({
+                    x: x,
+                    y: y,
+                    radius: 0,
+                    magnitude: state.seismic.magnitude,
+                    maxRadius: state.seismic.magnitude * 25,
+                    alpha: 1.0
+                });
+            } else if (state.activeTab === 'vortex') {
+                // Spawn satellite storm center bands
+                userEvents.vortex.push({
+                    x: x,
+                    y: y,
+                    angle: 0,
+                    size: state.vortex.category * 15,
+                    speed: state.vortex.windSpeed / 100
+                });
+            } else if (state.activeTab === 'hazards') {
+                // Random hazard select
+                const threatTypes = [];
+                if (state.hazards.tornadoes) threatTypes.push('Tornado');
+                if (state.hazards.blizzards) threatTypes.push('Blizzard');
+                if (state.hazards.floods) threatTypes.push('Flood');
+                if (state.hazards.wildfires) threatTypes.push('Wildfire');
+                
+                const type = threatTypes.length > 0 ? threatTypes[Math.floor(Math.random() * threatTypes.length)] : 'Hazard';
+                const warning = state.hazards.red ? 'Red Warning' : (state.hazards.orange ? 'Orange Watch' : 'Yellow Advisory');
+
+                userEvents.hazards.push({
+                    x: x,
+                    y: y,
+                    warning: warning,
+                    type: type,
+                    timer: 0,
+                    maxTimer: 180 // frames (~3 sec)
+                });
+            }
+        }
+
+        // Animation Loop Setup
+        function startLoop() {
+            function loop() {
+                // Draw background grids and layout elements
+                ctx.fillStyle = '#030712'; // bg-slate-950
+                ctx.fillRect(0, 0, canvas.width / (window.devicePixelRatio || 1), canvas.height / (window.devicePixelRatio || 1));
+
+                // Draw tactical grids
+                drawTacticalGrid();
+
+                // Draw visualizations based on tabs
+                if (state.activeTab === 'seismic') {
+                    drawSeismicVis();
+                } else if (state.activeTab === 'vortex') {
+                    drawVortexVis();
+                } else if (state.activeTab === 'hazards') {
+                    drawHazardsVis();
+                }
+
+                animationFrameId = requestAnimationFrame(loop);
+            }
+            loop();
+        }
+
+        // Background grid matrix lines
+        function drawTacticalGrid() {
+            const w = canvas.width / (window.devicePixelRatio || 1);
+            const h = canvas.height / (window.devicePixelRatio || 1);
+            ctx.strokeStyle = '#0f172a'; // slate-900
+            ctx.lineWidth = 1;
+            
+            const gridSize = 40;
+            // Vertical lines
+            for (let x = 0; x < w; x += gridSize) {
+                ctx.beginPath();
+                ctx.moveTo(x, 0);
+                ctx.lineTo(x, h);
+                ctx.stroke();
+            }
+            // Horizontal lines
+            for (let y = 0; y < h; y += gridSize) {
+                ctx.beginPath();
+                ctx.moveTo(0, y);
+                ctx.lineTo(w, y);
+                ctx.stroke();
+            }
+
+            // Radar sweep/concentric ring lines
+            ctx.strokeStyle = 'rgba(30, 41, 59, 0.4)';
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            ctx.arc(w / 2, h / 2, Math.min(w, h) * 0.35, 0, 2 * Math.PI);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.arc(w / 2, h / 2, Math.min(w, h) * 0.2, 0, 2 * Math.PI);
+            ctx.stroke();
+        }
+
+        // 1. SEISMIC MATRIX ANIMATION VISUALIZER
+        function drawSeismicVis() {
+            const w = canvas.width / (window.devicePixelRatio || 1);
+            const h = canvas.height / (window.devicePixelRatio || 1);
+
+            // Active sensors simulation dots
+            if (state.seismic.tectonic) {
+                drawActiveSensor(w * 0.25, h * 0.35, 'TECT-A', '#34d399');
+                drawActiveSensor(w * 0.75, h * 0.65, 'TECT-B', '#34d399');
+            }
+            if (state.seismic.volcanic) {
+                drawActiveSensor(w * 0.5, h * 0.25, 'VOLC-ALPHA', '#fb7185');
+            }
+            if (state.seismic.shallow) {
+                drawActiveSensor(w * 0.3, h * 0.75, 'SHAL-09', '#60a5fa');
+            }
+
+            // Animate existing pulses
+            for (let i = userEvents.seismic.length - 1; i >= 0; i--) {
+                const event = userEvents.seismic[i];
+                event.radius += (event.magnitude * 0.5);
+                event.alpha -= 0.012;
+
+                if (event.alpha <= 0 || event.radius >= event.maxRadius) {
+                    userEvents.seismic.splice(i, 1);
+                    continue;
+                }
+
+                // Render concentric rings
+                ctx.strokeStyle = `rgba(52, 211, 153, ${event.alpha})`;
+                ctx.lineWidth = event.magnitude * 0.8;
+                ctx.beginPath();
+                ctx.arc(event.x, event.y, event.radius, 0, 2 * Math.PI);
+                ctx.stroke();
+
+                ctx.strokeStyle = `rgba(16, 185, 129, ${event.alpha * 0.4})`;
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.arc(event.x, event.y, event.radius * 0.7, 0, 2 * Math.PI);
+                ctx.stroke();
+
+                // Draw magnitude label at center
+                ctx.fillStyle = `rgba(110, 231, 183, ${event.alpha})`;
+                ctx.font = '9px "JetBrains Mono"';
+                ctx.fillText(`MAG: ${event.magnitude.toFixed(1)} (D:${state.seismic.depth}km)`, event.x + 8, event.y - 8);
+                
+                ctx.fillStyle = `rgba(52, 211, 153, ${event.alpha})`;
+                ctx.beginPath();
+                ctx.arc(event.x, event.y, 3, 0, 2 * Math.PI);
+                ctx.fill();
+            }
+
+            // Passive continuous background vibrations
+            const time = Date.now() * 0.002;
+            ctx.strokeStyle = 'rgba(16, 185, 129, 0.15)';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            for (let x = 0; x < w; x += 5) {
+                const yOffset = Math.sin(x * 0.01 + time) * (state.seismic.magnitude * 3);
+                const y = h * 0.5 + yOffset;
+                if (x === 0) ctx.moveTo(x, y);
+                else ctx.lineTo(x, y);
+            }
+            ctx.stroke();
+        }
+
+        function drawActiveSensor(x, y, label, color) {
+            ctx.fillStyle = color;
+            ctx.beginPath();
+            ctx.arc(x, y, 4, 0, 2 * Math.PI);
+            ctx.fill();
+            
+            ctx.strokeStyle = color;
+            ctx.lineWidth = 0.5;
+            ctx.beginPath();
+            ctx.arc(x, y, 8 + Math.sin(Date.now() * 0.005) * 4, 0, 2 * Math.PI);
+            ctx.stroke();
+
+            ctx.fillStyle = '#64748b'; // slate-500
+            ctx.font = '8px "JetBrains Mono"';
+            ctx.fillText(label, x + 8, y + 3);
+        }
+
+        // 2. VORTEX TRACKER (HURRICANES) VISUALIZER
+        let vortexAngle = 0;
+        function drawVortexVis() {
+            const w = canvas.width / (window.devicePixelRatio || 1);
+            const h = canvas.height / (window.devicePixelRatio || 1);
+            const centerX = w / 2;
+            const centerY = h / 2;
+
+            vortexAngle += (state.vortex.windSpeed * 0.0001);
+
+            // Draw historical storm tracks
+            if (state.vortex.historical) {
+                ctx.strokeStyle = 'rgba(34, 211, 238, 0.2)';
+                ctx.setLineDash([5, 5]);
+                ctx.lineWidth = 1.5;
+                ctx.beginPath();
+                ctx.moveTo(w * 0.1, h * 0.9);
+                ctx.quadraticCurveTo(w * 0.4, h * 0.6, centerX, centerY);
+                ctx.stroke();
+                ctx.setLineDash([]); // Reset line dash
+            }
+
+            // Draw cone of uncertainty
+            if (state.vortex.cone) {
+                ctx.fillStyle = 'rgba(34, 211, 238, 0.04)';
+                ctx.beginPath();
+                ctx.moveTo(centerX, centerY);
+                ctx.lineTo(w * 0.8, h * 0.25);
+                ctx.lineTo(w * 0.9, h * 0.45);
+                ctx.closePath();
+                ctx.fill();
+
+                ctx.strokeStyle = 'rgba(34, 211, 238, 0.15)';
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.moveTo(centerX, centerY);
+                ctx.lineTo(w * 0.8, h * 0.25);
+                ctx.moveTo(centerX, centerY);
+                ctx.lineTo(w * 0.9, h * 0.45);
+                ctx.stroke();
+            }
+
+            // Swirling particles in main vortex core
+            const particleCount = 120 + (state.vortex.category * 30);
+            const baseRadius = 40 + (state.vortex.category * 15);
+            
+            ctx.lineWidth = 1.5;
+            for (let i = 0; i < particleCount; i++) {
+                const angle = vortexAngle + (i * (Math.PI * 2 / particleCount));
+                // Spiral formula
+                const distanceFactor = (i % 3) * 40 + baseRadius;
+                const r = distanceFactor - (Math.sin(vortexAngle + i) * 10);
+                const px = centerX + Math.cos(angle) * r;
+                const py = centerY + Math.sin(angle) * r;
+
+                // Color gradients based on satellite view
+                if (state.vortex.satellite) {
+                    // Thermal infrared view: Red/Orange for strong bands, Blue for outer margins
+                    ctx.fillStyle = i % 5 === 0 ? 'rgba(239, 68, 68, 0.6)' : (i % 3 === 0 ? 'rgba(249, 115, 22, 0.5)' : 'rgba(59, 130, 246, 0.4)');
+                } else {
+                    ctx.fillStyle = `rgba(34, 211, 238, ${0.1 + (1 - r / (w * 0.5)) * 0.6})`;
+                }
+
+                ctx.beginPath();
+                ctx.arc(px, py, 1.5 + (state.vortex.category * 0.4), 0, 2 * Math.PI);
+                ctx.fill();
+            }
+
+            // Main storm eye center text
+            ctx.fillStyle = '#22d3ee'; // cyan-400
+            ctx.font = '10px "JetBrains Mono"';
+            ctx.textAlign = 'center';
+            ctx.fillText(`EYE: ST-CAT ${state.vortex.category}`, centerX, centerY - 15);
+            ctx.fillText(`${state.vortex.windSpeed} KTS`, centerX, centerY + 25);
+            ctx.textAlign = 'start'; // reset
+
+            ctx.strokeStyle = 'rgba(34, 211, 238, 0.8)';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.arc(centerX, centerY, 8, 0, 2 * Math.PI);
+            ctx.stroke();
+
+            // Draw dynamic user-placed storms
+            for (let i = 0; i < userEvents.vortex.length; i++) {
+                const storm = userEvents.vortex[i];
+                storm.angle += storm.speed;
+                
+                ctx.strokeStyle = 'rgba(6, 182, 212, 0.4)';
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.arc(storm.x, storm.y, storm.size, 0, 2 * Math.PI);
+                ctx.stroke();
+
+                // Swirl arm dots
+                for (let j = 0; j < 5; j++) {
+                    const swirlAngle = storm.angle + (j * Math.PI * 0.4);
+                    const sx = storm.x + Math.cos(swirlAngle) * (storm.size * 0.8);
+                    const sy = storm.y + Math.sin(swirlAngle) * (storm.size * 0.8);
+                    ctx.fillStyle = '#22d3ee';
+                    ctx.beginPath();
+                    ctx.arc(sx, sy, 2, 0, 2 * Math.PI);
+                    ctx.fill();
+                }
+            }
+        }
+
+        // 3. SEVERE HAZARDS TRACKER VISUALIZER
+        let radarAngle = 0;
+        function drawHazardsVis() {
+            const w = canvas.width / (window.devicePixelRatio || 1);
+            const h = canvas.height / (window.devicePixelRatio || 1);
+            const centerX = w / 2;
+            const centerY = h / 2;
+
+            // Increment radar sweep line angle
+            radarAngle += 0.015;
+
+            // Draw rotating radar beam sweep
+            const maxRadius = Math.min(w, h) * 0.45;
+            const beamX = centerX + Math.cos(radarAngle) * maxRadius;
+            const beamY = centerY + Math.sin(radarAngle) * maxRadius;
+
+            // Draw sweep gradient beam
+            ctx.strokeStyle = 'rgba(244, 63, 94, 0.15)'; // rose-500
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.moveTo(centerX, centerY);
+            ctx.lineTo(beamX, beamY);
+            ctx.stroke();
+
+            // Draw hazard indicator flags
+            drawHazardMarker(w * 0.35, h * 0.25, 'Tornado', 'Red Warning', state.hazards.tornadoes && state.hazards.red);
+            drawHazardMarker(w * 0.7, h * 0.3, 'Flood', 'Orange Watch', state.hazards.floods && state.hazards.orange);
+            drawHazardMarker(w * 0.25, h * 0.65, 'Wildfire', 'Red Warning', state.hazards.wildfires && state.hazards.red);
+            drawHazardMarker(w * 0.55, h * 0.75, 'Blizzard', 'Yellow Advisory', state.hazards.blizzards && state.hazards.yellow);
+
+            // Animate user placed markers
+            for (let i = userEvents.hazards.length - 1; i >= 0; i--) {
+                const event = userEvents.hazards[i];
+                event.timer++;
+                
+                if (event.timer >= event.maxTimer) {
+                    userEvents.hazards.splice(i, 1);
+                    continue;
+                }
+
+                const opacity = 1 - (event.timer / event.maxTimer);
+                
+                // Pulsing dot
+                ctx.fillStyle = `rgba(244, 63, 94, ${opacity})`;
+                ctx.beginPath();
+                ctx.arc(event.x, event.y, 5, 0, 2 * Math.PI);
+                ctx.fill();
+
+                ctx.strokeStyle = `rgba(244, 63, 94, ${opacity * 0.5})`;
+                ctx.lineWidth = 1.5;
+                ctx.beginPath();
+                ctx.arc(event.x, event.y, 8 + (event.timer % 20) * 0.8, 0, 2 * Math.PI);
+                ctx.stroke();
+
+                // Draw labels
+                ctx.fillStyle = `rgba(244, 63, 94, ${opacity})`;
+                ctx.font = '8px "JetBrains Mono"';
+                ctx.fillText(`LOCAL ${event.type.toUpperCase()}`, event.x + 8, event.y - 8);
+                ctx.fillStyle = `rgba(255, 255, 255, ${opacity * 0.7})`;
+                ctx.fillText(`${event.warning.toUpperCase()}`, event.x + 8, event.y + 3);
+            }
+        }
+
+        function drawHazardMarker(x, y, type, alertLevel, isVisible) {
+            if (!isVisible) return;
+            
+            // Pulse opacity
+            const pulse = (Math.sin(Date.now() * 0.004) + 1) / 2;
+            let markerColor = '#f43f5e'; // default rose (red warning)
+            if (alertLevel === 'Orange Watch') markerColor = '#fb923c'; // orange
+            if (alertLevel === 'Yellow Advisory') markerColor = '#facc15'; // yellow
+
+            // Dot
+            ctx.fillStyle = markerColor;
+            ctx.beginPath();
+            ctx.arc(x, y, 4, 0, 2 * Math.PI);
+            ctx.fill();
+
+            // Glow outer ring
+            ctx.strokeStyle = markerColor;
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.arc(x, y, 6 + (pulse * 6), 0, 2 * Math.PI);
+            ctx.stroke();
+
+            // Flag label lines
+            ctx.strokeStyle = 'rgba(100, 116, 139, 0.4)'; // slate-500
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(x, y);
+            ctx.lineTo(x + 12, y - 12);
+            ctx.lineTo(x + 65, y - 12);
+            ctx.stroke();
+
+            // Text info
+            ctx.fillStyle = '#e2e8f0'; // slate-200
+            ctx.font = '7px "JetBrains Mono"';
+            ctx.fillText(`${type.toUpperCase()}`, x + 16, y - 18);
+            ctx.fillStyle = markerColor;
+            ctx.fillText(alertLevel.toUpperCase(), x + 16, y - 5);
+        }
+
+        // Timer utilities
+        function updateUptime() {
+            const diff = Date.now() - state.startTime;
+            const secs = Math.floor((diff / 1000) % 60).toString().padStart(2, '0');
+            const mins = Math.floor((diff / (1000 * 60)) % 60).toString().padStart(2, '0');
+            const hours = Math.floor((diff / (1000 * 60 * 60)) % 24).toString().padStart(2, '0');
+            document.getElementById('uptime-counter').innerText = `${hours}:${mins}:${secs}`;
+        }
+
+        // Simulates realistic bandwidth/telemetry fluctuations
+        function simulateTelemetryRate() {
+            const val = (40 + Math.random() * 12).toFixed(1);
+            document.getElementById('data-rate').innerText = `${val} MB/s`;
+        }
+    </script>
+</body>
+</html>
