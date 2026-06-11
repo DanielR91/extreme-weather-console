@@ -540,29 +540,117 @@
 
         // --- VORTEX RADAR FEEDS SIMULATION ---
         function fetchVortexData() {
-            // Emulate live satellite query timing
-            setTimeout(() => {
-                const storms = [
-                    { lat: 0.35, lon: -1.15, cat: 4, name: 'HURRICANE KATE', speed: 135 },
-                    { lat: 0.22, lon: 2.15, cat: 3, name: 'TYPHOON GENEVA', speed: 110 }
-                ];
-                storms.forEach(s => {
-                    threats.push({
-                        type: 'vortex',
-                        lat: s.lat,
-                        lon: s.lon,
-                        intensity: s.cat / 5.0,
-                        name: s.name,
-                        windSpeed: s.speed,
-                        category: s.cat,
-                        age: 0,
-                        maxAge: 240
-                    });
+            // Standard simulated hurricanes
+            const storms = [
+                { lat: 0.35, lon: -1.15, cat: 4, name: 'HURRICANE KATE', speed: 135 },
+                { lat: 0.22, lon: 2.15, cat: 3, name: 'TYPHOON GENEVA', speed: 110 }
+            ];
+            storms.forEach(s => {
+                threats.push({
+                    type: 'vortex',
+                    isHurricane: true,
+                    lat: s.lat,
+                    lon: s.lon,
+                    intensity: s.cat / 5.0,
+                    name: s.name,
+                    windSpeed: s.speed,
+                    category: s.cat,
+                    age: 0,
+                    maxAge: 240
                 });
-                
-                renderSidebarFilters('vortex');
-                showLoading(false);
-            }, 800);
+            });
+
+            // Fetch live NOAA convective alerts (Tornado, Thunderstorm, High Wind)
+            const url = 'https://api.weather.gov/alerts/active?status=actual';
+            fetch(url)
+                .then(response => {
+                    if (!response.ok) throw new Error("NOAA response code: " + response.status);
+                    return response.json();
+                })
+                .then(data => {
+                    data.features.forEach(feature => {
+                        const props = feature.properties;
+                        const event = props.event || '';
+                        const isConvective = event.toLowerCase().includes('tornado') || 
+                                             event.toLowerCase().includes('thunderstorm') || 
+                                             event.toLowerCase().includes('wind');
+                        
+                        if (isConvective) {
+                            const geom = feature.geometry;
+                            let lat = null, lon = null;
+                            if (geom && geom.coordinates && geom.coordinates.length > 0) {
+                                if (geom.type === 'Polygon') {
+                                    const pts = geom.coordinates[0];
+                                    let sumLat = 0, sumLon = 0;
+                                    pts.forEach(p => { sumLon += p[0]; sumLat += p[1]; });
+                                    lat = sumLat / pts.length;
+                                    lon = sumLon / pts.length;
+                                } else if (geom.type === 'Point') {
+                                    lat = geom.coordinates[1];
+                                    lon = geom.coordinates[0];
+                                }
+                            }
+
+                            if (lat === null) {
+                                lat = 32 + Math.random() * 14;
+                                lon = -120 + Math.random() * 45;
+                            }
+
+                            // Clean and truncate name string
+                            let eventName = props.event || props.headline || "Convective Vortex";
+                            if (eventName.includes(' inside')) {
+                                eventName = eventName.split(' inside')[0];
+                            }
+                            if (eventName.length > 30) {
+                                eventName = eventName.substring(0, 30);
+                            }
+
+                            threats.push({
+                                type: 'vortex',
+                                isHurricane: false,
+                                lat: lat * Math.PI / 180,
+                                lon: lon * Math.PI / 180,
+                                intensity: 0.35,
+                                name: eventName,
+                                windSpeed: 70,
+                                category: 1,
+                                age: Math.floor(Math.random() * 100),
+                                maxAge: 240
+                            });
+                        }
+                    });
+
+                    renderSidebarFilters('vortex');
+                    showLoading(false);
+                })
+                .catch(error => {
+                    console.error("Vortex convective fetch failure:", error);
+                    // Inject Fallback Mock convective alerts
+                    const mockConvectives = [
+                        { event: "Tornado Warning inside Sedgwick, KS", lat: 37.6, lon: -97.3 },
+                        { event: "Severe Thunderstorm Warning inside Dallas, TX", lat: 32.7, lon: -96.8 }
+                    ];
+                    mockConvectives.forEach(a => {
+                        let eventName = a.event;
+                        if (eventName.includes(' inside')) {
+                            eventName = eventName.split(' inside')[0];
+                        }
+                        threats.push({
+                            type: 'vortex',
+                            isHurricane: false,
+                            lat: a.lat * Math.PI / 180,
+                            lon: a.lon * Math.PI / 180,
+                            intensity: 0.35,
+                            name: eventName,
+                            windSpeed: 65,
+                            category: 1,
+                            age: Math.floor(Math.random() * 100),
+                            maxAge: 240
+                        });
+                    });
+                    renderSidebarFilters('vortex');
+                    showLoading(false);
+                });
         }
 
         // --- NOAA WEATHER SEVERE HAZARDS FETCH PIPELINE ---
@@ -1205,7 +1293,11 @@
                             colorRGB = '52, 211, 153'; // Emerald green
                         }
                     } else if (threat.type === 'vortex') {
-                        colorRGB = '34, 211, 238'; // cyan
+                        if (threat.isHurricane === false) {
+                            colorRGB = '249, 115, 22'; // Orange for convective vortices
+                        } else {
+                            colorRGB = '34, 211, 238'; // Cyan/blue for hurricanes
+                        }
                     }
 
                     // Dot pinpoint
@@ -1252,13 +1344,21 @@
                         if (threat.type === 'seismic') {
                             ctx.fillText(threat.name, pt.x + 8, pt.y - 4);
                         } else if (threat.type === 'vortex') {
+                            if (threat.isHurricane === false) {
+                                ctx.fillStyle = `rgba(255, 255, 255, ${0.85 * baseAlpha})`; // Clear white label
+                            } else {
+                                ctx.fillStyle = `rgba(${colorRGB}, 0.85)`; // Cyan label for hurricanes
+                            }
                             ctx.fillText(threat.name, pt.x + 8, pt.y - 4);
-                            ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
-                            ctx.fillText(`CAT ${threat.category} - ${threat.windSpeed}KT`, pt.x + 8, pt.y + 6);
+                            
+                            if (threat.isHurricane !== false) {
+                                ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
+                                ctx.fillText(`CAT ${threat.category} - ${threat.windSpeed}KT`, pt.x + 8, pt.y + 6);
+                            }
 
                             // Draw path forecast lines based on timeline slider
                             if (state.vortex.cone || state.vortex.historical) {
-                                ctx.strokeStyle = 'rgba(34, 211, 238, 0.35)';
+                                ctx.strokeStyle = threat.isHurricane === false ? 'rgba(249, 115, 22, 0.35)' : 'rgba(34, 211, 238, 0.35)';
                                 ctx.lineWidth = 1.0;
                                 ctx.setLineDash([3, 3]);
                                 ctx.beginPath();
