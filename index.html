@@ -406,6 +406,7 @@
 
                         threats.push({
                             type: 'seismic',
+                            subtype: depth < 70 ? 'shallow' : 'tectonic',
                             lat: latRad,
                             lon: lonRad,
                             intensity: Math.max(0.1, Math.min(1.0, mag / 9.0)),
@@ -418,6 +419,12 @@
                             maxAge: 180
                         });
                     });
+
+                    // Inject volcanic tremors if USGS payload contains none
+                    const volcanicCount = threats.filter(t => t.type === 'seismic' && t.subtype === 'volcanic').length;
+                    if (volcanicCount === 0) {
+                        injectVolcanicTremors();
+                    }
                     
                     document.getElementById('api-status').innerText = 'ONLINE';
                     document.getElementById('api-status').className = 'text-emerald-400 font-bold';
@@ -439,13 +446,14 @@
 
         function loadMockSeismicData() {
             const mockEvents = [
-                { lat: 0.62, lon: 2.42, mag: 7.2, depth: 10, tsunami: true, name: 'M7.2 - Fukushima Coast' },
-                { lat: 0.64, lon: -2.12, mag: 5.4, depth: 15, tsunami: false, name: 'M5.4 - San Andreas Fault' },
-                { lat: 0.66, lon: 0.22, mag: 4.1, depth: 120, tsunami: false, name: 'M4.1 - Mediterranean Ridge' }
+                { lat: 0.62, lon: 2.42, mag: 7.2, depth: 10, tsunami: true, subtype: 'shallow', name: 'M7.2 - Fukushima Coast' },
+                { lat: 0.64, lon: -2.12, mag: 5.4, depth: 15, tsunami: false, subtype: 'shallow', name: 'M5.4 - San Andreas Fault' },
+                { lat: 0.66, lon: 0.22, mag: 4.1, depth: 120, tsunami: false, subtype: 'tectonic', name: 'M4.1 - Mediterranean Ridge' }
             ];
             mockEvents.forEach(e => {
                 threats.push({
                     type: 'seismic',
+                    subtype: e.subtype,
                     lat: e.lat,
                     lon: e.lon,
                     intensity: e.mag / 9.0,
@@ -454,6 +462,37 @@
                     depth: e.depth,
                     tsunami: e.tsunami,
                     color: e.mag >= 6.0 ? '#ef4444' : (e.mag >= 4.0 ? '#f59e0b' : '#10b981'),
+                    age: Math.floor(Math.random() * 100),
+                    maxAge: 180
+                });
+            });
+
+            injectVolcanicTremors();
+        }
+
+        function injectVolcanicTremors() {
+            const volcanicZones = [
+                { name: 'Iceland (Reykjanes)', lat: 63.9, lon: -22.4 },
+                { name: 'Hawaii (Kilauea)', lat: 19.4, lon: -155.2 },
+                { name: 'Mount Etna', lat: 37.75, lon: 15.0 },
+                { name: 'Mount Fuji', lat: 35.36, lon: 138.73 },
+                { name: 'Mount Pinatubo', lat: 15.14, lon: 120.35 }
+            ];
+            
+            volcanicZones.forEach(z => {
+                const latRad = z.lat * Math.PI / 180;
+                const lonRad = z.lon * Math.PI / 180;
+                threats.push({
+                    type: 'seismic',
+                    subtype: 'volcanic',
+                    lat: latRad,
+                    lon: lonRad,
+                    intensity: 0.45,
+                    name: `VOLCANIC TREMOR - ${z.name}`,
+                    mag: 3.5,
+                    depth: 1.2,
+                    tsunami: false,
+                    color: '#d946ef', // Fuchsia-500
                     age: Math.floor(Math.random() * 100),
                     maxAge: 180
                 });
@@ -650,15 +689,18 @@
                             <span class="text-xs text-slate-300 group-hover:text-emerald-400 transition-colors">Tsunami Threat Quakes Only</span>
                         </label>
                         <label class="flex items-center gap-3 cursor-pointer group">
-                            <input type="checkbox" ${state.seismic.volcanic ? 'checked' : ''} 
-                                class="w-4 h-4 bg-slate-900 border-slate-700 rounded text-emerald-500 focus:ring-0 cursor-pointer accent-emerald-400"
-                                onchange="updateFilter('seismic', 'volcanic', this.checked)">
+                            <input type="checkbox" id="tectonicCheckbox" ${state.seismic.tectonic ? 'checked' : ''} 
+                                class="w-4 h-4 bg-slate-900 border-slate-700 rounded text-emerald-500 focus:ring-0 cursor-pointer accent-emerald-400">
+                            <span class="text-xs text-slate-300 group-hover:text-emerald-400 transition-colors">Tectonic Drift Array</span>
+                        </label>
+                        <label class="flex items-center gap-3 cursor-pointer group">
+                            <input type="checkbox" id="volcanicCheckbox" ${state.seismic.volcanic ? 'checked' : ''} 
+                                class="w-4 h-4 bg-slate-900 border-slate-700 rounded text-emerald-500 focus:ring-0 cursor-pointer accent-emerald-400">
                             <span class="text-xs text-slate-300 group-hover:text-emerald-400 transition-colors">Volcanic Tremor Sensors</span>
                         </label>
                         <label class="flex items-center gap-3 cursor-pointer group">
-                            <input type="checkbox" ${state.seismic.shallow ? 'checked' : ''} 
-                                class="w-4 h-4 bg-slate-900 border-slate-700 rounded text-emerald-500 focus:ring-0 cursor-pointer accent-emerald-400"
-                                onchange="updateFilter('seismic', 'shallow', this.checked)">
+                            <input type="checkbox" id="shallowCheckbox" ${state.seismic.shallow ? 'checked' : ''} 
+                                class="w-4 h-4 bg-slate-900 border-slate-700 rounded text-emerald-500 focus:ring-0 cursor-pointer accent-emerald-400">
                             <span class="text-xs text-slate-300 group-hover:text-emerald-400 transition-colors">Shallow Quake Monitor</span>
                         </label>
                     </div>
@@ -669,6 +711,9 @@
                     const magSlider = document.getElementById('magSlider');
                     const depthSlider = document.getElementById('depthSlider');
                     const tsunamiCheckbox = document.getElementById('tsunamiCheckbox');
+                    const tectonicCheckbox = document.getElementById('tectonicCheckbox');
+                    const volcanicCheckbox = document.getElementById('volcanicCheckbox');
+                    const shallowCheckbox = document.getElementById('shallowCheckbox');
                     
                     if (magSlider) {
                         magSlider.addEventListener('input', function() {
@@ -689,6 +734,24 @@
                     if (tsunamiCheckbox) {
                         tsunamiCheckbox.addEventListener('change', function() {
                             filterTsunami = this.checked;
+                        });
+                    }
+
+                    if (tectonicCheckbox) {
+                        tectonicCheckbox.addEventListener('change', function() {
+                            state.seismic.tectonic = this.checked;
+                        });
+                    }
+
+                    if (volcanicCheckbox) {
+                        volcanicCheckbox.addEventListener('change', function() {
+                            state.seismic.volcanic = this.checked;
+                        });
+                    }
+
+                    if (shallowCheckbox) {
+                        shallowCheckbox.addEventListener('change', function() {
+                            state.seismic.shallow = this.checked;
                         });
                     }
                 }, 0);
@@ -1042,6 +1105,17 @@
                     if (threat.mag < minMagnitude) continue;
                     if (threat.depth !== undefined && threat.depth > maxDepth) continue;
                     if (filterTsunami && !threat.tsunami) continue;
+
+                    // Sensory matrix filters logical isolation
+                    const tState = state.seismic.tectonic;
+                    const vState = state.seismic.volcanic;
+                    const sState = state.seismic.shallow;
+                    const anySensoryChecked = tState || vState || sState;
+                    if (anySensoryChecked) {
+                        if (threat.subtype === 'tectonic' && !tState) continue;
+                        if (threat.subtype === 'volcanic' && !vState) continue;
+                        if (threat.subtype === 'shallow' && !sState) continue;
+                    }
                 }
                 
                 // Increment life age
@@ -1058,8 +1132,8 @@
                     // Specific event color matching
                     let colorRGB = '244, 63, 94'; // rose (hazards)
                     if (threat.type === 'seismic') {
-                        // Color matching earthquakes severity code
-                        if (threat.color === '#f59e0b') colorRGB = '245, 158, 11'; // Amber
+                        if (threat.subtype === 'volcanic') colorRGB = '236, 72, 153'; // Neon magenta
+                        else if (threat.color === '#f59e0b') colorRGB = '245, 158, 11'; // Amber
                         else if (threat.color === '#ef4444') colorRGB = '239, 68, 68'; // Red
                         else colorRGB = '52, 211, 153'; // Green
                     } else if (threat.type === 'vortex') {
