@@ -220,6 +220,11 @@
         // World geography features
         let worldFeatures = [];
 
+        // Seismic filters global state tracking variables
+        let minMagnitude = 4.5;
+        let maxDepth = 700;
+        let filterTsunami = false;
+
         // Master Threat Coordinate Data (lat/lon in radians, intensity 0..1)
         let threats = [];
 
@@ -385,8 +390,10 @@
                         const coords = feature.geometry.coordinates;
                         const lat = coords[1];
                         const lon = coords[0];
+                        const depth = coords[2] || 0;
                         const mag = feature.properties.mag || 1.0;
                         const place = feature.properties.place || 'Seismic Event';
+                        const tsunami = feature.properties.tsunami === 1;
 
                         // Convert coordinates into radian mapping values
                         const latRad = lat * Math.PI / 180;
@@ -404,6 +411,8 @@
                             intensity: Math.max(0.1, Math.min(1.0, mag / 9.0)),
                             name: `M${mag.toFixed(1)} - ${place.split(',')[0]}`,
                             mag: mag,
+                            depth: depth,
+                            tsunami: tsunami,
                             color: colorHex,
                             age: Math.floor(Math.random() * 100), // staggered ripple offsets
                             maxAge: 180
@@ -430,9 +439,9 @@
 
         function loadMockSeismicData() {
             const mockEvents = [
-                { lat: 0.62, lon: 2.42, mag: 7.2, name: 'M7.2 - Fukushima Coast' },
-                { lat: 0.64, lon: -2.12, mag: 5.4, name: 'M5.4 - San Andreas Fault' },
-                { lat: 0.66, lon: 0.22, mag: 4.1, name: 'M4.1 - Mediterranean Ridge' }
+                { lat: 0.62, lon: 2.42, mag: 7.2, depth: 10, tsunami: true, name: 'M7.2 - Fukushima Coast' },
+                { lat: 0.64, lon: -2.12, mag: 5.4, depth: 15, tsunami: false, name: 'M5.4 - San Andreas Fault' },
+                { lat: 0.66, lon: 0.22, mag: 4.1, depth: 120, tsunami: false, name: 'M4.1 - Mediterranean Ridge' }
             ];
             mockEvents.forEach(e => {
                 threats.push({
@@ -442,6 +451,8 @@
                     intensity: e.mag / 9.0,
                     name: e.name,
                     mag: e.mag,
+                    depth: e.depth,
+                    tsunami: e.tsunami,
                     color: e.mag >= 6.0 ? '#ef4444' : (e.mag >= 4.0 ? '#f59e0b' : '#10b981'),
                     age: Math.floor(Math.random() * 100),
                     maxAge: 180
@@ -616,30 +627,27 @@
                     <div class="space-y-4">
                         <label class="block text-xs font-bold uppercase tracking-wider text-emerald-400">Trigger Threshold (Mag)</label>
                         <div class="flex items-center gap-4">
-                            <input type="range" min="1.0" max="10.0" step="0.1" value="${state.seismic.magnitude}" 
-                                class="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-emerald-400"
-                                oninput="updateFilter('seismic', 'magnitude', parseFloat(this.value)); document.getElementById('mag-val').innerText = this.value">
-                            <span class="text-sm font-mono text-emerald-400 min-w-[32px] text-right" id="mag-val">${state.seismic.magnitude.toFixed(1)}</span>
+                            <input type="range" id="magSlider" min="1.0" max="10.0" step="0.1" value="${minMagnitude}" 
+                                class="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-emerald-400">
+                            <span class="text-sm font-mono text-emerald-400 min-w-[32px] text-right" id="magValue">${minMagnitude.toFixed(1)}</span>
                         </div>
                     </div>
 
                     <div class="space-y-4">
                         <label class="block text-xs font-bold uppercase tracking-wider text-emerald-400">Hypocentral Depth (km)</label>
                         <div class="flex items-center gap-4">
-                            <input type="range" min="0" max="700" step="10" value="${state.seismic.depth}" 
-                                class="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-emerald-400"
-                                oninput="updateFilter('seismic', 'depth', parseInt(this.value)); document.getElementById('depth-val').innerText = this.value + 'km'">
-                            <span class="text-sm font-mono text-emerald-400 min-w-[50px] text-right" id="depth-val">${state.seismic.depth}km</span>
+                            <input type="range" id="depthSlider" min="0" max="700" step="10" value="${maxDepth}" 
+                                class="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-emerald-400">
+                            <span class="text-sm font-mono text-emerald-400 min-w-[50px] text-right" id="depthValue">${maxDepth}km</span>
                         </div>
                     </div>
 
                     <div class="space-y-3 pt-2">
                         <label class="block text-xs font-bold uppercase tracking-wider text-slate-400">Sensory Matrix Feed</label>
                         <label class="flex items-center gap-3 cursor-pointer group">
-                            <input type="checkbox" ${state.seismic.tectonic ? 'checked' : ''} 
-                                class="w-4 h-4 bg-slate-900 border-slate-700 rounded text-emerald-500 focus:ring-0 cursor-pointer accent-emerald-400"
-                                onchange="updateFilter('seismic', 'tectonic', this.checked)">
-                            <span class="text-xs text-slate-300 group-hover:text-emerald-400 transition-colors">Tectonic Drift Array</span>
+                            <input type="checkbox" id="tsunamiCheckbox" ${filterTsunami ? 'checked' : ''} 
+                                class="w-4 h-4 bg-slate-900 border-slate-700 rounded text-emerald-500 focus:ring-0 cursor-pointer accent-emerald-400">
+                            <span class="text-xs text-slate-300 group-hover:text-emerald-400 transition-colors">Tsunami Threat Quakes Only</span>
                         </label>
                         <label class="flex items-center gap-3 cursor-pointer group">
                             <input type="checkbox" ${state.seismic.volcanic ? 'checked' : ''} 
@@ -655,6 +663,35 @@
                         </label>
                     </div>
                 `;
+
+                // Set up event listeners dynamically
+                setTimeout(() => {
+                    const magSlider = document.getElementById('magSlider');
+                    const depthSlider = document.getElementById('depthSlider');
+                    const tsunamiCheckbox = document.getElementById('tsunamiCheckbox');
+                    
+                    if (magSlider) {
+                        magSlider.addEventListener('input', function() {
+                            document.getElementById('magValue').innerText = parseFloat(this.value).toFixed(1);
+                            minMagnitude = parseFloat(this.value);
+                            state.seismic.magnitude = minMagnitude;
+                        });
+                    }
+                    
+                    if (depthSlider) {
+                        depthSlider.addEventListener('input', function() {
+                            document.getElementById('depthValue').innerText = this.value + 'km';
+                            maxDepth = parseInt(this.value);
+                            state.seismic.depth = maxDepth;
+                        });
+                    }
+                    
+                    if (tsunamiCheckbox) {
+                        tsunamiCheckbox.addEventListener('change', function() {
+                            filterTsunami = this.checked;
+                        });
+                    }
+                }, 0);
             } else if (tabName === 'vortex') {
                 html = `
                     <div class="space-y-4">
@@ -999,6 +1036,13 @@
         function renderPoints(cx, cy, R) {
             for (let i = 0; i < threats.length; i++) {
                 const threat = threats[i];
+                
+                // Seismic filtering conditions
+                if (threat.type === 'seismic') {
+                    if (threat.mag < minMagnitude) continue;
+                    if (threat.depth !== undefined && threat.depth > maxDepth) continue;
+                    if (filterTsunami && !threat.tsunami) continue;
+                }
                 
                 // Increment life age
                 threat.age = (threat.age + 1) % threat.maxAge;
