@@ -711,26 +711,26 @@
                     </div>
 
                     <div class="space-y-3 pt-2">
-                        <label class="block text-xs font-bold uppercase tracking-wider text-slate-400">Sensory Matrix Feed</label>
-                        <label class="flex items-center gap-3 cursor-pointer group">
+                        <label class="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">Sensory Matrix Feed</label>
+                        <label class="flex items-center gap-3 cursor-pointer group px-3 py-2 rounded-md border border-cyan-500/10 bg-cyan-950/10 hover:border-cyan-500/30 transition-all">
                             <input type="checkbox" id="tsunamiCheckbox" ${filterTsunami ? 'checked' : ''} 
-                                class="w-4 h-4 bg-slate-900 border-slate-700 rounded text-emerald-500 focus:ring-0 cursor-pointer accent-emerald-400">
-                            <span class="text-xs text-slate-300 group-hover:text-emerald-400 transition-colors">Tsunami Threat Quakes Only</span>
+                                class="w-4 h-4 bg-slate-900 border-slate-700 rounded text-cyan-500 focus:ring-0 cursor-pointer accent-cyan-400">
+                            <span class="text-xs text-cyan-400/90 font-medium group-hover:text-cyan-300 transition-colors">Tsunami Threat Quakes Only</span>
                         </label>
-                        <label class="flex items-center gap-3 cursor-pointer group">
+                        <label class="flex items-center gap-3 cursor-pointer group px-3 py-2 rounded-md border border-emerald-500/10 bg-emerald-950/10 hover:border-emerald-500/30 transition-all">
                             <input type="checkbox" id="tectonicCheckbox" ${state.seismic.tectonic ? 'checked' : ''} 
                                 class="w-4 h-4 bg-slate-900 border-slate-700 rounded text-emerald-500 focus:ring-0 cursor-pointer accent-emerald-400">
-                            <span class="text-xs text-slate-300 group-hover:text-emerald-400 transition-colors">Tectonic Drift Array</span>
+                            <span class="text-xs text-emerald-400/90 font-medium group-hover:text-emerald-300 transition-colors">Tectonic Drift Array</span>
                         </label>
-                        <label class="flex items-center gap-3 cursor-pointer group">
+                        <label class="flex items-center gap-3 cursor-pointer group px-3 py-2 rounded-md border border-fuchsia-500/10 bg-fuchsia-950/10 hover:border-fuchsia-500/30 transition-all">
                             <input type="checkbox" id="volcanicCheckbox" ${state.seismic.volcanic ? 'checked' : ''} 
-                                class="w-4 h-4 bg-slate-900 border-slate-700 rounded text-emerald-500 focus:ring-0 cursor-pointer accent-emerald-400">
-                            <span class="text-xs text-slate-300 group-hover:text-emerald-400 transition-colors">Volcanic Tremor Sensors</span>
+                                class="w-4 h-4 bg-slate-900 border-slate-700 rounded text-fuchsia-500 focus:ring-0 cursor-pointer accent-fuchsia-400">
+                            <span class="text-xs text-fuchsia-400/90 font-medium group-hover:text-fuchsia-300 transition-colors">Volcanic Tremor Sensors</span>
                         </label>
-                        <label class="flex items-center gap-3 cursor-pointer group">
+                        <label class="flex items-center gap-3 cursor-pointer group px-3 py-2 rounded-md border border-amber-500/10 bg-amber-950/10 hover:border-amber-500/30 transition-all">
                             <input type="checkbox" id="shallowCheckbox" ${state.seismic.shallow ? 'checked' : ''} 
-                                class="w-4 h-4 bg-slate-900 border-slate-700 rounded text-emerald-500 focus:ring-0 cursor-pointer accent-emerald-400">
-                            <span class="text-xs text-slate-300 group-hover:text-emerald-400 transition-colors">Shallow Quake Monitor</span>
+                                class="w-4 h-4 bg-slate-900 border-slate-700 rounded text-amber-500 focus:ring-0 cursor-pointer accent-amber-400">
+                            <span class="text-xs text-amber-400/90 font-medium group-hover:text-amber-300 transition-colors">Shallow Quake Monitor</span>
                         </label>
                     </div>
                 `;
