@@ -399,6 +399,13 @@
                         const latRad = lat * Math.PI / 180;
                         const lonRad = lon * Math.PI / 180;
 
+                        const isVolcanicEvent = checkIsVolcanic({
+                            type: 'seismic',
+                            lat: latRad,
+                            lon: lonRad,
+                            depth: depth
+                        });
+
                         // Severity scoring
                         let colorHex = '#10b981'; // Green M1-M3
                         if (mag >= 4.0 && mag < 6.0) colorHex = '#f59e0b'; // Amber M4-M5.9
@@ -406,11 +413,11 @@
 
                         threats.push({
                             type: 'seismic',
-                            subtype: depth < 70 ? 'shallow' : 'tectonic',
+                            subtype: isVolcanicEvent ? 'volcanic' : (depth < 70 ? 'shallow' : 'tectonic'),
                             lat: latRad,
                             lon: lonRad,
                             intensity: Math.max(0.1, Math.min(1.0, mag / 9.0)),
-                            name: `M${mag.toFixed(1)} - ${place.split(',')[0]}`,
+                            name: isVolcanicEvent ? `VOLC M${mag.toFixed(1)} - ${place.split(',')[0]}` : `M${mag.toFixed(1)} - ${place.split(',')[0]}`,
                             mag: mag,
                             depth: depth,
                             tsunami: tsunami,
@@ -468,6 +475,28 @@
             });
 
             injectVolcanicTremors();
+        }
+
+        // Helper to check if a threat lies in an active volcanic zone with depth < 10km
+        function checkIsVolcanic(threat) {
+            if (threat.subtype === 'volcanic') return true;
+            if (threat.type === 'seismic') {
+                const latDeg = threat.lat * 180 / Math.PI;
+                const lonDeg = threat.lon * 180 / Math.PI;
+                const volcanicZones = [
+                    { lat: 63.9, lon: -22.4 },  // Iceland
+                    { lat: 19.4, lon: -155.2 }, // Hawaii
+                    { lat: 37.75, lon: 15.0 },  // Mount Etna
+                    { lat: 35.36, lon: 138.73 }, // Mount Fuji
+                    { lat: 15.14, lon: 120.35 } // Mount Pinatubo
+                ];
+                const isNearHotspot = volcanicZones.some(z => 
+                    Math.abs(latDeg - z.lat) <= 0.5 && Math.abs(lonDeg - z.lon) <= 0.5
+                );
+                const isShallow = threat.depth !== undefined && threat.depth < 10;
+                return isNearHotspot && isShallow;
+            }
+            return false;
         }
 
         function injectVolcanicTremors() {
@@ -1112,9 +1141,9 @@
                     const sState = state.seismic.shallow;
                     const anySensoryChecked = tState || vState || sState;
                     if (anySensoryChecked) {
-                        const isTectonic = threat.subtype === 'tectonic';
-                        const isVolcanic = threat.subtype === 'volcanic' || threat.type === 'volcanic' || (threat.subtype && threat.subtype.includes('volcanic'));
-                        const isShallow = threat.subtype === 'shallow';
+                        const isVolcanic = checkIsVolcanic(threat);
+                        const isTectonic = threat.subtype === 'tectonic' && !isVolcanic;
+                        const isShallow = threat.subtype === 'shallow' && !isVolcanic;
 
                         if (isTectonic && !tState) continue;
                         if (isVolcanic && !vState) continue;
@@ -1136,7 +1165,7 @@
                     // Specific event color matching
                     let colorRGB = '244, 63, 94'; // rose (hazards)
                     if (threat.type === 'seismic') {
-                        if (threat.subtype === 'volcanic') colorRGB = '236, 72, 153'; // Neon magenta
+                        if (checkIsVolcanic(threat)) colorRGB = '236, 72, 153'; // Neon fuchsia
                         else if (threat.color === '#f59e0b') colorRGB = '245, 158, 11'; // Amber
                         else if (threat.color === '#ef4444') colorRGB = '239, 68, 68'; // Red
                         else colorRGB = '52, 211, 153'; // Green
