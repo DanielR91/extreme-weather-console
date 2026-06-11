@@ -121,6 +121,17 @@
                 <div id="dynamic-filters" class="space-y-6">
                     <!-- Loaded dynamically via JavaScript -->
                 </div>
+
+                <!-- Global Tectonic Toggle -->
+                <div class="border-t border-slate-800 pt-4 space-y-3">
+                    <label class="block text-xs font-bold uppercase tracking-wider text-cyan-400">Global Overlay Matrices</label>
+                    <label class="flex items-center gap-3 cursor-pointer group">
+                        <input type="checkbox" id="tectonicToggle" checked 
+                            class="w-4 h-4 bg-slate-900 border-slate-700 rounded text-cyan-500 focus:ring-0 cursor-pointer accent-cyan-400"
+                            onchange="toggleTectonicBoundaries(this.checked)">
+                        <span class="text-xs text-slate-300 group-hover:text-cyan-400 transition-colors">Tectonic Fault Arrays</span>
+                    </label>
+                </div>
             </div>
 
             <!-- Sidebar Footer Status Panel -->
@@ -227,6 +238,8 @@
 
         // World geography features
         let worldFeatures = [];
+        let tectonicBoundaries = [];
+        let showTectonic = true;
 
         // Seismic filters global state tracking variables
         let minMagnitude = 2.0;
@@ -279,6 +292,15 @@
                     console.log(`Loaded world boundaries: ${worldFeatures.length} countries.`);
                 })
                 .catch(err => console.error("Error loading world boundaries:", err));
+
+            // Fetch tectonic plates boundaries asynchronously
+            fetch('https://cdn.jsdelivr.net/gh/fraxen/tectonicplates@master/GeoJSON/PB2002_boundaries.json')
+                .then(r => r.json())
+                .then(data => {
+                    tectonicBoundaries = data.features;
+                    console.log(`Loaded tectonic boundaries: ${tectonicBoundaries.length} segments.`);
+                })
+                .catch(err => console.error("Error loading tectonic boundaries:", err));
 
             // Render first tab controls and load data
             switchTab('seismic');
@@ -1060,6 +1082,73 @@
             document.getElementById('telemetryPopup').classList.add('hidden');
         }
 
+        function toggleTectonicBoundaries(checked) {
+            showTectonic = checked;
+        }
+
+        function drawTectonicBoundaries(cx, cy, R) {
+            if (!showTectonic || !tectonicBoundaries || tectonicBoundaries.length === 0) return;
+
+            ctx.strokeStyle = 'rgba(34, 211, 238, 0.35)'; // Faint neon cyan
+            ctx.lineWidth = 1.2;
+            ctx.setLineDash([4, 6]);
+
+            tectonicBoundaries.forEach(feature => {
+                const geom = feature.geometry;
+                if (!geom) return;
+
+                let coords = [];
+                if (geom.type === 'LineString') {
+                    coords = [geom.coordinates];
+                } else if (geom.type === 'MultiLineString') {
+                    coords = geom.coordinates;
+                } else {
+                    return;
+                }
+
+                coords.forEach(line => {
+                    let drawing = false;
+
+                    for (let i = 0; i < line.length; i++) {
+                        const coord = line[i];
+                        if (!coord || isNaN(coord[0]) || isNaN(coord[1])) {
+                            if (drawing) {
+                                ctx.stroke();
+                                drawing = false;
+                            }
+                            continue;
+                        }
+
+                        const lon = coord[0] * Math.PI / 180;
+                        const lat = coord[1] * Math.PI / 180;
+
+                        const pt = project3DPoint(lat, lon, R, cx, cy);
+                        const isVisible = pt && !isNaN(pt.x) && !isNaN(pt.y) && !isNaN(pt.z) && pt.z > 0;
+
+                        if (isVisible) {
+                            if (!drawing) {
+                                ctx.beginPath();
+                                ctx.moveTo(pt.x, pt.y);
+                                drawing = true;
+                            } else {
+                                ctx.lineTo(pt.x, pt.y);
+                            }
+                        } else {
+                            if (drawing) {
+                                ctx.stroke();
+                                drawing = false;
+                            }
+                        }
+                    }
+                    if (drawing) {
+                        ctx.stroke();
+                    }
+                });
+            });
+
+            ctx.setLineDash([]);
+        }
+
         function handleCanvasClick(event) {
             const rect = canvas.getBoundingClientRect();
             const mouseX = event.clientX - rect.left;
@@ -1178,6 +1267,9 @@
 
                 // Draw country borders
                 drawBorders(w / 2, h / 2, R);
+
+                // Draw tectonic plate boundaries
+                drawTectonicBoundaries(w / 2, h / 2, R);
 
                 // Render coordinate threat points ripples
                 renderPoints(w / 2, h / 2, R);
