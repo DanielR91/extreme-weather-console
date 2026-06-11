@@ -1197,10 +1197,13 @@
                     // Specific event color matching
                     let colorRGB = '239, 68, 68'; // warning red (hazards)
                     if (threat.type === 'seismic') {
-                        if (threat.isVolcanic) colorRGB = '236, 72, 153'; // Neon fuchsia
-                        else if (threat.color === '#f59e0b') colorRGB = '245, 158, 11'; // Amber
-                        else if (threat.color === '#ef4444') colorRGB = '239, 68, 68'; // Red
-                        else colorRGB = '52, 211, 153'; // Green
+                        if (threat.isVolcanic) {
+                            colorRGB = '236, 72, 153'; // Neon fuchsia
+                        } else if (threat.isShallow) {
+                            colorRGB = '245, 158, 11'; // Amber/orange
+                        } else if (threat.isTectonic) {
+                            colorRGB = '52, 211, 153'; // Emerald green
+                        }
                     } else if (threat.type === 'vortex') {
                         colorRGB = '34, 211, 238'; // cyan
                     }
