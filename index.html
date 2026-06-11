@@ -22,6 +22,8 @@
             }
         }
     </script>
+    <!-- TopoJSON parser client library -->
+    <script src="https://unpkg.com/topojson-client@3"></script>
     <!-- Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -72,7 +74,7 @@
             </span>
             <div class="flex flex-col">
                 <h1 class="text-lg font-bold tracking-widest text-emerald-400 uppercase flex items-center gap-2">
-                    EXTREME WEATHER CONSOLE <span class="text-xs bg-slate-800 text-slate-400 px-2 py-0.5 rounded font-normal">v3.2.0</span>
+                    EXTREME WEATHER CONSOLE <span class="text-xs bg-slate-800 text-slate-400 px-2 py-0.5 rounded font-normal">v3.5.0</span>
                 </h1>
                 <span class="text-2xs text-slate-500 font-mono tracking-tight">3D ORBITAL TACTICAL MATRIX MONITORING</span>
             </div>
@@ -215,6 +217,9 @@
         let startMouseY = 0;
         const R_factor = 0.38;   // Globe radius factor
 
+        // World geography features
+        let worldFeatures = [];
+
         // Master Threat Coordinate Data (lat/lon in radians, intensity 0..1)
         let threats = [];
 
@@ -245,6 +250,15 @@
             canvas.addEventListener('touchmove', handleTouchMove, { passive: false });
             canvas.addEventListener('touchend', handleTouchEnd);
             
+            // Fetch map borders asynchronously
+            fetch('https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json')
+                .then(r => r.json())
+                .then(data => {
+                    worldFeatures = topojson.feature(data, data.objects.countries).features;
+                    console.log(`Loaded world boundaries: ${worldFeatures.length} countries.`);
+                })
+                .catch(err => console.error("Error loading world boundaries:", err));
+
             // Render first tab controls and load data
             switchTab('seismic');
             
@@ -300,19 +314,19 @@
                     tabClass: 'bg-emerald-950/60 text-emerald-400 border border-emerald-500/30 neon-glow-emerald',
                     text: 'text-emerald-400',
                     viewTitle: '3D SEISMIC MATRIX GLOBE',
-                    instruction: 'Click on the globe sphere to trigger localized 3D seismic epicenters.'
+                    instruction: 'Interactive 3D representation showing global earthquake sensors and events.'
                 },
                 vortex: {
                     tabClass: 'bg-cyan-950/60 text-cyan-400 border border-cyan-500/30 neon-glow-cyan',
                     text: 'text-cyan-400',
                     viewTitle: '3D VORTEX RADAR GLOBE',
-                    instruction: 'Click on the globe to map severe cyclonic vortex vectors.'
+                    instruction: 'Track dynamic weather events and cyclones along live orbital corridors.'
                 },
                 hazards: {
                     tabClass: 'bg-rose-950/60 text-rose-400 border border-rose-500/30 neon-glow-rose',
                     text: 'text-rose-400',
                     viewTitle: '3D SEVERE HAZARDS GLOBE',
-                    instruction: 'Click on the globe to map localized NOAA active hazard alerts.'
+                    instruction: 'Display active alerts (Tornadoes, Floods, Blizzards) globally.'
                 }
             };
             
@@ -824,6 +838,9 @@
                 const R = Math.min(w, h) * R_factor;
                 draw3DGlobe(w / 2, h / 2, R);
 
+                // Draw country borders
+                drawBorders(w / 2, h / 2, R);
+
                 // Render coordinate threat points ripples
                 renderPoints(w / 2, h / 2, R);
 
@@ -907,6 +924,54 @@
             ctx.closePath();
             ctx.fill();
             ctx.stroke();
+        }
+
+        // Draw low-resolution country borders onto the 3D globe sphere
+        function drawBorders(cx, cy, R) {
+            if (!worldFeatures || worldFeatures.length === 0) return;
+            
+            ctx.strokeStyle = 'rgba(71, 85, 105, 0.35)'; // slate-600 with low opacity
+            ctx.lineWidth = 0.55;
+            ctx.beginPath();
+            
+            worldFeatures.forEach(feature => {
+                const geom = feature.geometry;
+                if (!geom) return;
+                
+                if (geom.type === 'Polygon') {
+                    drawRingList(geom.coordinates, cx, cy, R);
+                } else if (geom.type === 'MultiPolygon') {
+                    geom.coordinates.forEach(ringList => {
+                        drawRingList(ringList, cx, cy, R);
+                    });
+                }
+            });
+            
+            ctx.stroke();
+        }
+
+        function drawRingList(ringList, cx, cy, R) {
+            ringList.forEach(ring => {
+                let drawing = false;
+                
+                for (let i = 0; i < ring.length; i++) {
+                    const lon = ring[i][0] * Math.PI / 180;
+                    const lat = ring[i][1] * Math.PI / 180;
+                    
+                    const pt = project3DPoint(lat, lon, R, cx, cy);
+                    
+                    if (pt.z > 0) {
+                        if (!drawing) {
+                            ctx.moveTo(pt.x, pt.y);
+                            drawing = true;
+                        } else {
+                            ctx.lineTo(pt.x, pt.y);
+                        }
+                    } else {
+                        drawing = false;
+                    }
+                }
+            });
         }
 
         // Map spherical coordinates to 3D Cartesian rotated coords
