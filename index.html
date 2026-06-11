@@ -1178,7 +1178,6 @@
             
             ctx.strokeStyle = 'rgba(71, 85, 105, 0.35)'; // slate-600 with low opacity
             ctx.lineWidth = 0.55;
-            ctx.beginPath();
             
             worldFeatures.forEach(feature => {
                 const geom = feature.geometry;
@@ -1192,21 +1191,26 @@
                     });
                 }
             });
-            
-            ctx.stroke();
         }
 
         function drawRingList(ringList, cx, cy, R) {
             ringList.forEach(ring => {
                 let drawing = false;
+                ctx.beginPath(); // Start a fresh path context for each independent ring
                 
                 for (let i = 0; i < ring.length; i++) {
-                    const lon = ring[i][0] * Math.PI / 180;
-                    const lat = ring[i][1] * Math.PI / 180;
+                    const ringPt = ring[i];
+                    if (!ringPt || isNaN(ringPt[0]) || isNaN(ringPt[1])) {
+                        drawing = false;
+                        continue;
+                    }
+                    
+                    const lon = ringPt[0] * Math.PI / 180;
+                    const lat = ringPt[1] * Math.PI / 180;
                     
                     const pt = project3DPoint(lat, lon, R, cx, cy);
                     
-                    if (pt.z > 0) {
+                    if (pt && !isNaN(pt.x) && !isNaN(pt.y) && !isNaN(pt.z) && pt.z > 0) {
                         if (!drawing) {
                             ctx.moveTo(pt.x, pt.y);
                             drawing = true;
@@ -1214,9 +1218,11 @@
                             ctx.lineTo(pt.x, pt.y);
                         }
                     } else {
+                        // Lift pen and stop connecting segments if point is behind the horizon
                         drawing = false;
                     }
                 }
+                ctx.stroke();
             });
         }
 
