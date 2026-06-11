@@ -1321,9 +1321,23 @@
                     ctx.fill();
 
                     if (threat.type === 'hazard' && isActiveType) {
-                        ctx.fillStyle = '#ffffff';
-                        ctx.font = '10px monospace';
-                        ctx.fillText(threat.name, pt.x + 8, pt.y + 3);
+                        if (!threat.name) {
+                            console.warn("Missing hazard name for point:", threat);
+                        }
+                        // Force alpha back to 100% for text clarity
+                        ctx.globalAlpha = 1.0; 
+                        
+                        // Use a bulletproof system-fallback font string
+                        ctx.font = 'bold 11px sans-serif'; 
+                        
+                        // Use a high-contrast pure white fill
+                        ctx.fillStyle = '#FFFFFF'; 
+                        
+                        // Set alignment properties explicitly
+                        ctx.textAlign = 'left';
+                        ctx.textBaseline = 'middle';
+
+                        ctx.fillText(threat.name || "Severe Hazard", pt.x + 10, pt.y);
                     }
 
                     // Expanding concentric ripples calculation
@@ -1346,6 +1360,8 @@
 
                     // Labels
                     if (isActiveType) {
+                        ctx.textAlign = 'left';
+                        ctx.textBaseline = 'alphabetic';
                         ctx.fillStyle = `rgba(${colorRGB}, 0.85)`;
                         ctx.font = '8px "JetBrains Mono"';
                         
