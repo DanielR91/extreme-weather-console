@@ -225,6 +225,10 @@
         let maxDepth = 700;
         let filterTsunami = false;
 
+        // Vortex filters global state tracking variables
+        let minWindSpeed = 64;
+        let forecastSteps = 5;
+
         // Master Threat Coordinate Data (lat/lon in radians, intensity 0..1)
         let threats = [];
 
@@ -792,48 +796,67 @@
                 }, 0);
             } else if (tabName === 'vortex') {
                 html = `
-                    <div class="space-y-4">
-                        <label class="block text-xs font-bold uppercase tracking-wider text-cyan-400">Vortex Category</label>
+                    <div class="space-y-4 px-3 py-2 rounded-md border border-red-500/10 bg-red-950/10 hover:border-red-500/30 transition-all">
+                        <label class="block text-xs font-bold uppercase tracking-wider text-red-500">Max Storm Velocity</label>
                         <div class="flex items-center gap-4">
-                            <input type="range" min="1" max="5" step="1" value="${state.vortex.category}" 
-                                class="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-cyan-400"
-                                oninput="updateFilter('vortex', 'category', parseInt(this.value)); document.getElementById('cat-val').innerText = 'CAT ' + this.value">
-                            <span class="text-sm font-mono text-cyan-400 min-w-[50px] text-right" id="cat-val">CAT ${state.vortex.category}</span>
+                            <input type="range" id="windSlider" min="64" max="180" step="1" value="${minWindSpeed}" 
+                                class="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-red-500">
+                            <span class="text-sm font-mono text-red-500 min-w-[50px] text-right" id="windValue">${minWindSpeed}kt</span>
                         </div>
                     </div>
 
-                    <div class="space-y-4">
-                        <label class="block text-xs font-bold uppercase tracking-wider text-cyan-400">Wind Velocity (knots)</label>
+                    <div class="space-y-4 px-3 py-2 rounded-md border border-cyan-500/10 bg-cyan-950/10 hover:border-cyan-500/30 transition-all">
+                        <label class="block text-xs font-bold uppercase tracking-wider text-cyan-400">Projection Timeline</label>
                         <div class="flex items-center gap-4">
-                            <input type="range" min="64" max="180" step="1" value="${state.vortex.windSpeed}" 
-                                class="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-cyan-400"
-                                oninput="updateFilter('vortex', 'windSpeed', parseInt(this.value)); document.getElementById('wind-val').innerText = this.value + 'kt'">
-                            <span class="text-sm font-mono text-cyan-400 min-w-[50px] text-right" id="wind-val">${state.vortex.windSpeed}kt</span>
+                            <input type="range" id="forecastSlider" min="1" max="5" step="1" value="${forecastSteps}" 
+                                class="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-cyan-400">
+                            <span class="text-sm font-mono text-cyan-400 min-w-[50px] text-right" id="forecastValue">${forecastSteps} Days</span>
                         </div>
                     </div>
 
                     <div class="space-y-3 pt-2">
-                        <label class="block text-xs font-bold uppercase tracking-wider text-slate-400">Predictive Overlays</label>
-                        <label class="flex items-center gap-3 cursor-pointer group">
+                        <label class="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">Predictive Overlays</label>
+                        <label class="flex items-center gap-3 cursor-pointer group px-3 py-2 rounded-md border border-cyan-500/10 bg-cyan-950/10 hover:border-cyan-500/30 transition-all">
                             <input type="checkbox" ${state.vortex.historical ? 'checked' : ''} 
                                 class="w-4 h-4 bg-slate-900 border-slate-700 rounded text-cyan-500 focus:ring-0 cursor-pointer accent-cyan-400"
                                 onchange="updateFilter('vortex', 'historical', this.checked)">
-                            <span class="text-xs text-slate-300 group-hover:text-cyan-400 transition-colors">Historical Track</span>
+                            <span class="text-xs text-cyan-400/90 font-medium group-hover:text-cyan-300 transition-colors">Historical Track</span>
                         </label>
-                        <label class="flex items-center gap-3 cursor-pointer group">
+                        <label class="flex items-center gap-3 cursor-pointer group px-3 py-2 rounded-md border border-cyan-500/10 bg-cyan-950/10 hover:border-cyan-500/30 transition-all">
                             <input type="checkbox" ${state.vortex.cone ? 'checked' : ''} 
                                 class="w-4 h-4 bg-slate-900 border-slate-700 rounded text-cyan-500 focus:ring-0 cursor-pointer accent-cyan-400"
                                 onchange="updateFilter('vortex', 'cone', this.checked)">
-                            <span class="text-xs text-slate-300 group-hover:text-cyan-400 transition-colors">Cone of Uncertainty</span>
+                            <span class="text-xs text-cyan-400/90 font-medium group-hover:text-cyan-300 transition-colors">Cone of Uncertainty</span>
                         </label>
-                        <label class="flex items-center gap-3 cursor-pointer group">
+                        <label class="flex items-center gap-3 cursor-pointer group px-3 py-2 rounded-md border border-cyan-500/10 bg-cyan-950/10 hover:border-cyan-500/30 transition-all">
                             <input type="checkbox" ${state.vortex.satellite ? 'checked' : ''} 
                                 class="w-4 h-4 bg-slate-900 border-slate-700 rounded text-cyan-500 focus:ring-0 cursor-pointer accent-cyan-400"
                                 onchange="updateFilter('vortex', 'satellite', this.checked)">
-                            <span class="text-xs text-slate-300 group-hover:text-cyan-400 transition-colors">Infrared Sat Overlay</span>
+                            <span class="text-xs text-cyan-400/90 font-medium group-hover:text-cyan-300 transition-colors">Infrared Sat Overlay</span>
                         </label>
                     </div>
                 `;
+
+                // Wire up event listeners
+                setTimeout(() => {
+                    const windSlider = document.getElementById('windSlider');
+                    const forecastSlider = document.getElementById('forecastSlider');
+                    
+                    if (windSlider) {
+                        windSlider.addEventListener('input', function() {
+                            document.getElementById('windValue').innerText = this.value + 'kt';
+                            minWindSpeed = parseInt(this.value);
+                            state.vortex.windSpeed = minWindSpeed;
+                        });
+                    }
+                    
+                    if (forecastSlider) {
+                        forecastSlider.addEventListener('input', function() {
+                            document.getElementById('forecastValue').innerText = this.value + ' Days';
+                            forecastSteps = parseInt(this.value);
+                        });
+                    }
+                }, 0);
             } else if (tabName === 'hazards') {
                 // Generate alerts list output inside sidebar container
                 let alertsHTML = '';
@@ -1154,6 +1177,11 @@
                         if (!show) continue;
                     }
                 }
+
+                // Vortex filtering conditions
+                if (threat.type === 'vortex') {
+                    if (threat.windSpeed < minWindSpeed) continue;
+                }
                 
                 // Increment life age
                 threat.age = (threat.age + 1) % threat.maxAge;
@@ -1219,6 +1247,26 @@
                             ctx.fillText(threat.name, pt.x + 8, pt.y - 4);
                             ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
                             ctx.fillText(`CAT ${threat.category} - ${threat.windSpeed}KT`, pt.x + 8, pt.y + 6);
+
+                            // Draw path forecast lines based on timeline slider
+                            if (state.vortex.cone || state.vortex.historical) {
+                                ctx.strokeStyle = 'rgba(34, 211, 238, 0.35)';
+                                ctx.lineWidth = 1.0;
+                                ctx.setLineDash([3, 3]);
+                                ctx.beginPath();
+                                ctx.moveTo(pt.x, pt.y);
+
+                                for (let step = 1; step <= forecastSteps; step++) {
+                                    const nextLat = threat.lat + step * 0.025;
+                                    const nextLon = threat.lon - step * 0.035;
+                                    const nextPt = project3DPoint(nextLat, nextLon, R, cx, cy);
+                                    if (nextPt.z > 0) {
+                                        ctx.lineTo(nextPt.x, nextPt.y);
+                                    }
+                                }
+                                ctx.stroke();
+                                ctx.setLineDash([]);
+                            }
                         } else if (threat.type === 'hazard') {
                             ctx.fillText(threat.category.toUpperCase(), pt.x + 8, pt.y - 4);
                             ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
