@@ -413,7 +413,9 @@
 
                         threats.push({
                             type: 'seismic',
-                            subtype: isVolcanicEvent ? 'volcanic' : (depth < 70 ? 'shallow' : 'tectonic'),
+                            isVolcanic: isVolcanicEvent,
+                            isShallow: depth < 70,
+                            isTectonic: !isVolcanicEvent,
                             lat: latRad,
                             lon: lonRad,
                             intensity: Math.max(0.1, Math.min(1.0, mag / 9.0)),
@@ -428,7 +430,7 @@
                     });
 
                     // Inject volcanic tremors if USGS payload contains none
-                    const volcanicCount = threats.filter(t => t.type === 'seismic' && (t.subtype === 'volcanic' || (t.subtype && t.subtype.includes('volcanic')))).length;
+                    const volcanicCount = threats.filter(t => t.type === 'seismic' && t.isVolcanic).length;
                     if (volcanicCount === 0) {
                         injectVolcanicTremors();
                     }
@@ -453,14 +455,16 @@
 
         function loadMockSeismicData() {
             const mockEvents = [
-                { lat: 0.62, lon: 2.42, mag: 7.2, depth: 10, tsunami: true, subtype: 'shallow', name: 'M7.2 - Fukushima Coast' },
-                { lat: 0.64, lon: -2.12, mag: 5.4, depth: 15, tsunami: false, subtype: 'shallow', name: 'M5.4 - San Andreas Fault' },
-                { lat: 0.66, lon: 0.22, mag: 4.1, depth: 120, tsunami: false, subtype: 'tectonic', name: 'M4.1 - Mediterranean Ridge' }
+                { lat: 0.62, lon: 2.42, mag: 7.2, depth: 10, tsunami: true, name: 'M7.2 - Fukushima Coast' },
+                { lat: 0.64, lon: -2.12, mag: 5.4, depth: 15, tsunami: false, name: 'M5.4 - San Andreas Fault' },
+                { lat: 0.66, lon: 0.22, mag: 4.1, depth: 120, tsunami: false, name: 'M4.1 - Mediterranean Ridge' }
             ];
             mockEvents.forEach(e => {
                 threats.push({
                     type: 'seismic',
-                    subtype: e.subtype,
+                    isVolcanic: false,
+                    isShallow: e.depth < 70,
+                    isTectonic: true,
                     lat: e.lat,
                     lon: e.lon,
                     intensity: e.mag / 9.0,
@@ -479,7 +483,7 @@
 
         // Helper to check if a threat lies in an active volcanic zone with depth < 10km
         function checkIsVolcanic(threat) {
-            if (threat.subtype === 'volcanic') return true;
+            if (threat.isVolcanic) return true;
             if (threat.type === 'seismic') {
                 const latDeg = threat.lat * 180 / Math.PI;
                 const lonDeg = threat.lon * 180 / Math.PI;
@@ -513,7 +517,9 @@
                 const lonRad = z.lon * Math.PI / 180;
                 threats.push({
                     type: 'seismic',
-                    subtype: 'volcanic',
+                    isVolcanic: true,
+                    isShallow: true,
+                    isTectonic: false,
                     lat: latRad,
                     lon: lonRad,
                     intensity: 0.45,
@@ -1141,13 +1147,11 @@
                     const sState = state.seismic.shallow;
                     const anySensoryChecked = tState || vState || sState;
                     if (anySensoryChecked) {
-                        const isVolcanic = checkIsVolcanic(threat);
-                        const isTectonic = threat.subtype === 'tectonic' && !isVolcanic;
-                        const isShallow = threat.subtype === 'shallow' && !isVolcanic;
-
-                        if (isTectonic && !tState) continue;
-                        if (isVolcanic && !vState) continue;
-                        if (isShallow && !sState) continue;
+                        let show = false;
+                        if (tState && threat.isTectonic) show = true;
+                        if (vState && threat.isVolcanic) show = true;
+                        if (sState && threat.isShallow) show = true;
+                        if (!show) continue;
                     }
                 }
                 
@@ -1165,7 +1169,7 @@
                     // Specific event color matching
                     let colorRGB = '244, 63, 94'; // rose (hazards)
                     if (threat.type === 'seismic') {
-                        if (checkIsVolcanic(threat)) colorRGB = '236, 72, 153'; // Neon fuchsia
+                        if (threat.isVolcanic) colorRGB = '236, 72, 153'; // Neon fuchsia
                         else if (threat.color === '#f59e0b') colorRGB = '245, 158, 11'; // Amber
                         else if (threat.color === '#ef4444') colorRGB = '239, 68, 68'; // Red
                         else colorRGB = '52, 211, 153'; // Green
