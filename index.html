@@ -1195,7 +1195,7 @@
                     const baseAlpha = isActiveType ? 0.95 : 0.15; // Dim inactive layers
                     
                     // Specific event color matching
-                    let colorRGB = '244, 63, 94'; // rose (hazards)
+                    let colorRGB = '239, 68, 68'; // warning red (hazards)
                     if (threat.type === 'seismic') {
                         if (threat.isVolcanic) colorRGB = '236, 72, 153'; // Neon fuchsia
                         else if (threat.color === '#f59e0b') colorRGB = '245, 158, 11'; // Amber
@@ -1206,16 +1206,21 @@
                     }
 
                     // Dot pinpoint
+                    let dotRadius = isActiveType ? 4.5 : 2.5;
                     ctx.fillStyle = `rgba(${colorRGB}, ${baseAlpha})`;
                     
-                    // Flashing red for major seismic quakes (>M6.0)
                     if (threat.type === 'seismic' && threat.mag >= 6.0 && isActiveType) {
                         const flash = (Math.floor(Date.now() / 250) % 2 === 0) ? 1.0 : 0.3;
                         ctx.fillStyle = `rgba(239, 68, 68, ${flash})`;
+                    } else if (threat.type === 'hazard' && isActiveType) {
+                        // Pulsing hazard warning marker
+                        const pulse = 1 + 0.25 * Math.sin(Date.now() * 0.008);
+                        dotRadius = 5.0 * pulse;
+                        ctx.fillStyle = `rgba(239, 68, 68, ${0.9 * baseAlpha})`;
                     }
 
                     ctx.beginPath();
-                    ctx.arc(pt.x, pt.y, isActiveType ? 4.5 : 2.5, 0, 2 * Math.PI);
+                    ctx.arc(pt.x, pt.y, dotRadius, 0, 2 * Math.PI);
                     ctx.fill();
 
                     // Expanding concentric ripples calculation
@@ -1268,9 +1273,9 @@
                                 ctx.setLineDash([]);
                             }
                         } else if (threat.type === 'hazard') {
-                            ctx.fillText(threat.category.toUpperCase(), pt.x + 8, pt.y - 4);
-                            ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
-                            ctx.fillText(threat.alert.toUpperCase(), pt.x + 8, pt.y + 6);
+                            ctx.fillStyle = `rgba(255, 255, 255, ${0.85 * baseAlpha})`;
+                            ctx.font = '10px monospace';
+                            ctx.fillText(threat.name, pt.x + 10, pt.y + 3.5);
                         }
                     }
                 }
