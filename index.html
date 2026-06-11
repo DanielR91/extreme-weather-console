@@ -155,9 +155,14 @@
                 </div>
             </div>
 
-            <!-- Canvas Container -->
             <div class="flex-1 relative overflow-hidden" id="canvas-container">
                 <canvas id="weather-canvas" class="absolute top-0 left-0 w-full h-full block cursor-grab active:cursor-grabbing"></canvas>
+                
+                <!-- Dynamic Telemetry Popup -->
+                <div id="telemetryPopup" class="absolute hidden z-50 bg-slate-950/90 backdrop-blur-md border border-slate-800 rounded-lg p-4 shadow-2xl max-w-xs text-xs font-mono text-slate-200">
+                    <button onclick="closeTelemetryPopup()" class="absolute top-2 right-2 text-slate-500 hover:text-slate-200 text-sm font-bold">&times;</button>
+                    <div id="popupContent" class="space-y-2"></div>
+                </div>
                 
                 <!-- DOWNLINK / LOADING OVERLAY -->
                 <div id="loading-overlay" class="hidden absolute inset-0 bg-slate-950/80 backdrop-blur-sm flex flex-col items-center justify-center z-20 pointer-events-none">
@@ -263,6 +268,9 @@
             canvas.addEventListener('touchmove', handleTouchMove, { passive: false });
             canvas.addEventListener('touchend', handleTouchEnd);
             
+            // Raycasting click popup selector binding
+            canvas.addEventListener('click', handleCanvasClick);
+            
             // Fetch map borders asynchronously
             fetch('https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json')
                 .then(r => r.json())
@@ -320,6 +328,7 @@
         // Tab Switching Logic
         function switchTab(tabName) {
             state.activeTab = tabName;
+            closeTelemetryPopup();
             
             // Colors matching active matrix themes
             const activeColors = {
@@ -1045,6 +1054,102 @@
             const x = (e.clientX - rect.left) * scaleX;
             const y = (e.clientY - rect.top) * scaleY;
             document.getElementById('coordinates').innerText = `X: ${x.toFixed(0)} Y: ${y.toFixed(0)}`;
+        }
+
+        function closeTelemetryPopup() {
+            document.getElementById('telemetryPopup').classList.add('hidden');
+        }
+
+        function handleCanvasClick(event) {
+            const rect = canvas.getBoundingClientRect();
+            const mouseX = event.clientX - rect.left;
+            const mouseY = event.clientY - rect.top;
+
+            const w = canvas.width / (window.devicePixelRatio || 1);
+            const h = canvas.height / (window.devicePixelRatio || 1);
+            const R = Math.min(w, h) * R_factor;
+            const cx = w / 2;
+            const cy = h / 2;
+
+            let activeItems = [];
+            if (state.activeTab === 'seismic') {
+                activeItems = threats.filter(t => t.type === 'seismic');
+            } else if (state.activeTab === 'vortex') {
+                activeItems = threats.filter(t => t.type === 'vortex');
+            } else if (state.activeTab === 'hazards') {
+                activeItems = hazards;
+            }
+
+            let matchedItem = null;
+
+            for (let i = 0; i < activeItems.length; i++) {
+                const item = activeItems[i];
+                const pt = project3DPoint(item.lat, item.lon, R, cx, cy);
+                if (pt && pt.z > 0) {
+                    const dx = pt.x - mouseX;
+                    const dy = pt.y - mouseY;
+                    const dist = Math.sqrt(dx * dx + dy * dy);
+                    if (dist <= 12) {
+                        matchedItem = item;
+                        break;
+                    }
+                }
+            }
+
+            const popup = document.getElementById('telemetryPopup');
+            const content = document.getElementById('popupContent');
+
+            if (matchedItem) {
+                let html = '';
+                if (state.activeTab === 'seismic') {
+                    let typeColor = 'text-emerald-400';
+                    if (matchedItem.isVolcanic) typeColor = 'text-fuchsia-400';
+                    else if (matchedItem.isShallow) typeColor = 'text-amber-400';
+
+                    const latDeg = (matchedItem.lat * 180 / Math.PI).toFixed(4);
+                    const lonDeg = (matchedItem.lon * 180 / Math.PI).toFixed(4);
+
+                    html = `
+                        <div class="font-bold text-slate-100 text-sm border-b border-slate-800 pb-1 mb-1 pr-4">SEISMIC EVENT</div>
+                        <div><span class="text-slate-400">Magnitude:</span> <span class="text-rose-400 font-bold">${matchedItem.mag}</span></div>
+                        <div><span class="text-slate-400">Location:</span> ${latDeg}&deg;, ${lonDeg}&deg;</div>
+                        <div><span class="text-slate-400">Type:</span> <span class="${typeColor} font-bold">${matchedItem.isVolcanic ? 'VOLCANIC' : (matchedItem.isShallow ? 'SHALLOW' : 'TECTONIC')}</span></div>
+                        <div><span class="text-slate-400">Depth:</span> ${matchedItem.depth} km</div>
+                        <div class="text-slate-300 mt-2 font-sans">${matchedItem.name}</div>
+                    `;
+                } else if (state.activeTab === 'vortex') {
+                    let colorClass = matchedItem.isHurricane === false ? 'text-orange-400' : 'text-cyan-400';
+                    const latDeg = (matchedItem.lat * 180 / Math.PI).toFixed(4);
+                    const lonDeg = (matchedItem.lon * 180 / Math.PI).toFixed(4);
+
+                    html = `
+                        <div class="font-bold text-slate-100 text-sm border-b border-slate-800 pb-1 mb-1 pr-4">${matchedItem.isHurricane === false ? 'CONVECTIVE VORTEX' : 'HURRICANE'}</div>
+                        <div><span class="text-slate-400">Identifier:</span> <span class="${colorClass} font-bold">${matchedItem.name}</span></div>
+                        <div><span class="text-slate-400">Location:</span> ${latDeg}&deg;, ${lonDeg}&deg;</div>
+                        <div><span class="text-slate-400">Wind Speed:</span> ${matchedItem.windSpeed} KT</div>
+                        ${matchedItem.isHurricane !== false ? `<div><span class="text-slate-400">Category:</span> CAT ${matchedItem.category}</div>` : ''}
+                        <div class="text-slate-300 mt-2 font-sans">${matchedItem.name} Vortex Track Corridor</div>
+                    `;
+                } else if (state.activeTab === 'hazards') {
+                    const latDeg = (matchedItem.lat * 180 / Math.PI).toFixed(4);
+                    const lonDeg = (matchedItem.lon * 180 / Math.PI).toFixed(4);
+
+                    html = `
+                        <div class="font-bold text-slate-100 text-sm border-b border-slate-800 pb-1 mb-1 pr-4">GLOBAL HAZARD</div>
+                        <div><span class="text-slate-400">Event:</span> <span class="text-yellow-400 font-bold">${matchedItem.name}</span></div>
+                        <div><span class="text-slate-400">Location:</span> ${latDeg}&deg;, ${lonDeg}&deg;</div>
+                        <div><span class="text-slate-400">Category:</span> ${matchedItem.category}</div>
+                        <div><span class="text-slate-400">Alert Level:</span> <span class="text-yellow-400 font-bold">${matchedItem.alert}</span></div>
+                    `;
+                }
+
+                content.innerHTML = html;
+                popup.style.left = `${mouseX + 15}px`;
+                popup.style.top = `${mouseY - 20}px`;
+                popup.classList.remove('hidden');
+            } else {
+                popup.classList.add('hidden');
+            }
         }
 
         // --- 3D ORTHOGRAPHIC PROJECTION & ANIMATION ENGINE ---
