@@ -1376,9 +1376,9 @@
                                 ctx.setLineDash([]);
                             }
                         } else if (threat.type === 'hazard') {
-                            ctx.fillStyle = `rgba(255, 255, 255, ${0.85 * baseAlpha})`;
+                            ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
                             ctx.font = '10px monospace';
-                            ctx.fillText(threat.name, pt.x + 10, pt.y + 3.5);
+                            ctx.fillText(threat.name, pt.x + 8, pt.y + 3);
                         }
                     }
                 }
