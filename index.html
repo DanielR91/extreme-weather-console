@@ -1196,12 +1196,14 @@
         function drawRingList(ringList, cx, cy, R) {
             ringList.forEach(ring => {
                 let drawing = false;
-                ctx.beginPath(); // Start a fresh path context for each independent ring
                 
                 for (let i = 0; i < ring.length; i++) {
                     const ringPt = ring[i];
                     if (!ringPt || isNaN(ringPt[0]) || isNaN(ringPt[1])) {
-                        drawing = false;
+                        if (drawing) {
+                            ctx.stroke();
+                            drawing = false;
+                        }
                         continue;
                     }
                     
@@ -1209,20 +1211,26 @@
                     const lat = ringPt[1] * Math.PI / 180;
                     
                     const pt = project3DPoint(lat, lon, R, cx, cy);
+                    const isVisible = pt && !isNaN(pt.x) && !isNaN(pt.y) && !isNaN(pt.z) && pt.z > 0;
                     
-                    if (pt && !isNaN(pt.x) && !isNaN(pt.y) && !isNaN(pt.z) && pt.z > 0) {
+                    if (isVisible) {
                         if (!drawing) {
+                            ctx.beginPath(); // Start a brand-new path context
                             ctx.moveTo(pt.x, pt.y);
                             drawing = true;
                         } else {
                             ctx.lineTo(pt.x, pt.y);
                         }
                     } else {
-                        // Lift pen and stop connecting segments if point is behind the horizon
-                        drawing = false;
+                        if (drawing) {
+                            ctx.stroke(); // Lift pen and render current segments on horizon crossing
+                            drawing = false;
+                        }
                     }
                 }
-                ctx.stroke();
+                if (drawing) {
+                    ctx.stroke();
+                }
             });
         }
 
@@ -1367,18 +1375,37 @@
                                 ctx.strokeStyle = threat.isHurricane === false ? 'rgba(249, 115, 22, 0.35)' : 'rgba(34, 211, 238, 0.35)';
                                 ctx.lineWidth = 1.0;
                                 ctx.setLineDash([3, 3]);
-                                ctx.beginPath();
-                                ctx.moveTo(pt.x, pt.y);
+                                
+                                let pathDrawing = pt.z > 0;
+                                if (pathDrawing) {
+                                    ctx.beginPath();
+                                    ctx.moveTo(pt.x, pt.y);
+                                }
 
                                 for (let step = 1; step <= forecastSteps; step++) {
                                     const nextLat = threat.lat + step * 0.025;
                                     const nextLon = threat.lon - step * 0.035;
                                     const nextPt = project3DPoint(nextLat, nextLon, R, cx, cy);
-                                    if (nextPt.z > 0) {
-                                        ctx.lineTo(nextPt.x, nextPt.y);
+                                    const nextVisible = nextPt && !isNaN(nextPt.x) && !isNaN(nextPt.y) && !isNaN(nextPt.z) && nextPt.z > 0;
+
+                                    if (nextVisible) {
+                                        if (!pathDrawing) {
+                                            ctx.beginPath();
+                                            ctx.moveTo(nextPt.x, nextPt.y);
+                                            pathDrawing = true;
+                                        } else {
+                                            ctx.lineTo(nextPt.x, nextPt.y);
+                                        }
+                                    } else {
+                                        if (pathDrawing) {
+                                            ctx.stroke();
+                                            pathDrawing = false;
+                                        }
                                     }
                                 }
-                                ctx.stroke();
+                                if (pathDrawing) {
+                                    ctx.stroke();
+                                }
                                 ctx.setLineDash([]);
                             }
                         } else if (threat.type === 'hazard') {
